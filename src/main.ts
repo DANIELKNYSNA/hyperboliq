@@ -7,6 +7,7 @@ import PrimeVue from 'primevue/config'
 import Aura from '@primeuix/themes/aura'
 import { VueQueryPlugin } from '@tanstack/vue-query'
 import { definePreset } from '@primeuix/themes'
+import '@fortawesome/fontawesome-free/css/all.min.css'
 
 import App from './App.vue'
 import router from './router'
