@@ -10,6 +10,8 @@ import Chip from 'primevue/chip'
 import { useSpellStore } from '@/stores/spellStore'
 import { useElixirStore } from '@/stores/elixirStore'
 import { useHouseStore } from '@/stores/houseStore'
+import { useRouter } from 'vue-router'
+const router = useRouter()
 
 library.add(faBuilding, faBolt, faFlask, faArrowRight, faHeart, faMagic, faShield, faHome, faCrown, faWandMagicSparkles, faLeaf, faUser, faClock, faIndustry)
 
@@ -25,6 +27,7 @@ const totalFavorites = computed(() => likedSpells.value.length + likedElixirs.va
 
 // House styling based on house name
 const getHouseColors = (houseName: string) => {
+  // We could in the future have the entire site run off the colours of the chosen house - ie a theme
   const houseColors = {
     'Gryffindor': {
       primary: '#7C2D12', // Dark red
@@ -182,7 +185,7 @@ onMounted(() => {
               <FontAwesomeIcon :icon="faShield" class="text-6xl text-gray-400 mb-4" />
               <h3 class="text-xl font-semibold text-gray-300 mb-2">No House Selected</h3>
               <p class="text-gray-400 mb-4">Visit the Houses page to join your Hogwarts house!</p>
-              <Button label="Choose Your House" />
+              <Button label="Choose Your House" @click="router.push('/houses')"/>
             </div>
           </template>
         </Card>

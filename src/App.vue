@@ -6,6 +6,7 @@ import AppFooter from '@/components/common/AppFooter.vue';
 import { useUiStore } from '@/stores/uiStore'
 import ApiClient from '@/Api/ApiClient';
 import { ApiClientsImpl } from '@/Api/ApiClients';
+import PWAStatus from './components/PWAStatus.vue';
 
 const uiStore = useUiStore()
 
@@ -28,6 +29,7 @@ provide('apiClients', apiClients)
       <NavMenu />
     </header>
     <main class="container mx-auto py-8 px-4">
+      <PWAStatus />
       <RouterView />
     </main>
     <AppFooter text="© 2025 Wizard World. All rights reserved." />
