@@ -1,200 +1,383 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch, onUnmounted } from 'vue'
-import { useQuery } from '@tanstack/vue-query'
+import { ref, onMounted, inject, computed } from 'vue'
 import Card from 'primevue/card'
-import DataTable from 'primevue/datatable'
-import Column from 'primevue/column'
 import Button from 'primevue/button'
-import { useWizardingWorldStore } from '../stores/wizardingWorld'
+import Badge from 'primevue/badge'
+import Chip from 'primevue/chip'
+import Dialog from 'primevue/dialog'
+import type { HouseInterface } from '@/interfaces/house'
+import type { ApiClientsImpl } from '@/Api/ApiClients'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { library } from '@fortawesome/fontawesome-svg-core'
+import { faExclamationTriangle, faFeather, faFire, faMagic, faSeedling, faSpinner, faTint, faStar, faPalette, faPaw, faCrown, faInfoCircle, faUsers, faHeart, faUserTie } from '@fortawesome/free-solid-svg-icons'
+import { useHouseStore } from '@/stores/houseStore'
+import { useUserStore } from '@/stores/userStore'
 
-interface House {
-  id: string
-  name: string
-  founder: string
-  house_points: number
-  mascot?: string
-  houseColors?: string[]
-}
+library.add(faFire, faSeedling, faFeather, faTint, faSpinner, faMagic, faExclamationTriangle, faStar, faPalette, faPaw, faCrown, faInfoCircle, faUsers, faHeart, faUserTie)
 
-const wizardingStore = useWizardingWorldStore()
+const apiClients = inject<ApiClientsImpl>('apiClients')
+const loading = ref(false)
+const fetchError = ref<string | null>(null)
+const showDetailsDialog = ref(false)
+const selectedHouse = ref<HouseInterface | null>(null)
+const houseStore = useHouseStore()
 
-const houses = ref<House[]>([
-  {
-    id: '1',
-    name: 'Gryffindor',
-    founder: 'Godric Gryffindor',
-    house_points: 482,
-    mascot: 'Lion',
-    houseColors: ['Scarlet', 'Gold'],
-  },
-  {
-    id: '2',
-    name: 'Hufflepuff',
-    founder: 'Helga Hufflepuff',
-    house_points: 352,
-    mascot: 'Badger',
-    houseColors: ['Yellow', 'Black'],
-  },
-  {
-    id: '3',
-    name: 'Ravenclaw',
-    founder: 'Rowena Ravenclaw',
-    house_points: 426,
-    mascot: 'Eagle',
-    houseColors: ['Blue', 'Bronze'],
-  },
-  {
-    id: '4',
-    name: 'Slytherin',
-    founder: 'Salazar Slytherin',
-    house_points: 472,
-    mascot: 'Serpent',
-    houseColors: ['Green', 'Silver'],
-  },
-])
+const userStore = useUserStore()
+const isAdmin = computed(() => userStore.isAdmin)
+
+const houses = computed(() => houseStore.houses)
+
+const myHouse = computed(() => houseStore.myHouse)
 
 const fetchHouses = async () => {
-  await new Promise((resolve) => setTimeout(resolve, 500))
-  return houses.value
+  if (!apiClients) {
+    fetchError.value = 'API client not available'
+    return []
+  }
+  try {
+    loading.value = true
+    fetchError.value = null
+    const response = await apiClients.serviceHousesClient.getHouses()
+    if (response && response.data) {
+      houseStore.houses = response.data
+      houseStore.houses.forEach((house: HouseInterface) => {
+        house.housePoints = house.housePoints || 100
+      })
+    }
+  } catch (err) {
+    fetchError.value = 'Failed to fetch houses'
+    console.error('Error fetching houses:', err)
+  } finally {
+    loading.value = false
+  }
 }
-
-const { data, isLoading, error } = useQuery({
-  queryKey: ['houses'],
-  queryFn: fetchHouses,
-})
-
-const tableData = reactive({
-  houses: [],
-  selectedHouse: null,
-})
-
-const lastSelectedHouse = ref<string | null>(null)
 
 function updateHousePoints(houseId: string, points: number) {
-  const house = houses.value.find((h) => h.id === houseId)
+  const house = houses.value?.find((h) => h.id === houseId)
   if (house) {
-    house.house_points = points
+    house.housePoints = points
   }
 }
 
-function selectHouse(house: House) {
-  tableData.selectedHouse = house
-  wizardingStore.selectHouse(house.id)
-  lastSelectedHouse.value = house.name
+function selectHouse(house: HouseInterface) {
+  selectedHouse.value = house
+  showDetailsDialog.value = true
 }
 
-watch(
-  () => wizardingStore.selectedHouse,
-  (newHouse) => {
-    if (newHouse) {
-      tableData.selectedHouse = houses.value.find((h) => h.id === newHouse.id) || null
-    }
-  },
-)
+function awardPoints(house: HouseInterface, points: number) {
+  updateHousePoints(house.id, (house.housePoints ?? 0) + points)
+}
+
+function removePoints(house: HouseInterface, points: number) {
+  updateHousePoints(house.id,(house.housePoints ?? 0) - points)
+}
+
+function getHouseIcon(houseName: string) {
+  const icons = {
+    'Gryffindor': faFire,
+    'Hufflepuff': faSeedling,
+    'Ravenclaw': faFeather,
+    'Slytherin': faTint
+  }
+  return icons[houseName as keyof typeof icons] || 'fas fa-home'
+}
+
+function getHouseGradient(houseName: string) {
+  const gradients = {
+    'Gryffindor': 'linear-gradient(135deg, #ae0001 0%, #ffd700 100%)',
+    'Hufflepuff': 'linear-gradient(135deg, #ffdb00 0%, #000000 100%)',
+    'Ravenclaw': 'linear-gradient(135deg, #0e1a40 0%, #946b2d 100%)',
+    'Slytherin': 'linear-gradient(135deg, #1a472a 0%, #aaaaaa 100%)'
+  }
+  return gradients[houseName as keyof typeof gradients] || 'linear-gradient(135deg, #666 0%, #999 100%)'
+}
+
+function getHouseNameColor(houseName: string) {
+  const colorClasses = {
+    'Gryffindor': 'gryffindor',
+    'Hufflepuff': 'hufflepuff',
+    'Ravenclaw': 'ravenclaw',
+    'Slytherin': 'slytherin'
+  }
+  return colorClasses[houseName as keyof typeof colorClasses] || ''
+}
+
+function setMyHouse(house: HouseInterface) {
+  if(houseStore.myHouse) {
+    removePoints(houseStore.myHouse, 10)
+  }
+  houseStore.myHouse = house
+  awardPoints(house, 10)
+}
 
 onMounted(() => {
-  document.title = 'Hogwarts Houses'
-  if (wizardingStore.data) {
-    houses.value = [...wizardingStore.data]
+  if (!houses.value) {
+    fetchHouses()
   }
-})
-
-onUnmounted(() => {
-  // No need to clear the timer as it's not used
 })
 </script>
 
 <template>
-  <div>
-    <Card class="mb-4">
-      <template #title>Houses</template>
-      <template #content>
-        <p class="mb-4">Explore the different houses of the wizarding world.</p>
-
-        <div v-if="isLoading" class="flex justify-center py-4">Loading houses...</div>
-        <div v-else-if="error" class="text-red-500">An error occurred while loading houses.</div>
-        <div v-else>
-          <DataTable
-            :value="data"
-            stripedRows
-            paginator
-            :rows="10"
-            tableStyle="min-width: 50rem"
-            v-model:selection="tableData.selectedHouse"
-          >
-            <Column field="name" header="Name" sortable></Column>
-            <Column field="founder" header="Founder" sortable></Column>
-            <Column field="house_points" header="House Points" sortable></Column>
-            <Column>
-              <template #body="slotProps">
-                <div :class="'house-row ' + slotProps.data.name.toLowerCase()">
-                  <Button
-                    icon="fas fa-eye"
-                    label="View Details"
-                    @click="selectHouse(slotProps.data)"
-                  />
-                </div>
-              </template>
-            </Column>
-          </DataTable>
-
-          <!-- House Detail Section -->
-          <div v-if="tableData.selectedHouse" class="mt-4 p-4 border rounded">
-            <h3 class="text-xl font-bold">Selected House Details</h3>
-            <p>Name: {{ tableData.selectedHouse.name }}</p>
-            <p>Founder: {{ tableData.selectedHouse.founder }}</p>
-            <p>House Points: {{ tableData.selectedHouse.house_points }}</p>
-
-            <h4 class="text-lg font-semibold mt-2">Additional Information</h4>
-            <p>Mascot: {{ tableData.selectedHouse.mascot }}</p>
-
-            <div v-if="tableData.selectedHouse.houseColors">
-              <p>House Colors:</p>
-              <ul>
-                <li v-for="(color, index) in tableData.selectedHouse.houseColors" :key="index">
-                  {{ color }}
-                </li>
-              </ul>
+  <div class="p-8 max-w-7xl mx-auto">
+    <div class="fixed top-0 left-0 w-full h-full bg-cover bg-center bg-no-repeat -z-30 house-background"></div>
+    <div class="text-center mb-12">
+      <h1 class="text-5xl font-bold mb-4 text-white drop-shadow-lg transition-colors duration-200 text-outlined">
+        <FontAwesomeIcon :icon="faMagic" class="mr-4 text-black" />
+        Houses of <span class="text-yellow-400 drop-shadow-md text-outlined-yellow">Hogwarts</span>
+      </h1>
+      <p class="text-lg sm:text-xl text-gray-100 max-w-3xl mx-auto drop-shadow-md transition-colors duration-200 text-outlined-subtle">
+        Choose your house and discover the magic within
+      </p>
+    </div>
+    <!-- Loading State -->
+    <div v-if="loading" class="text-center py-16 px-8">
+      <div class="text-5xl text-purple-600 mb-4">
+        <FontAwesomeIcon :icon="faSpinner" class="animate-spin" />
+      </div>
+      <p class="text-lg">Summoning houses from Hogwarts...</p>
+    </div>
+    <!-- Error State -->
+    <div v-else-if="fetchError" class="text-center py-16 px-8 text-red-500">
+      <FontAwesomeIcon :icon="faExclamationTriangle" class="text-3xl mb-4" />
+      <p class="text-lg">{{ fetchError }}</p>
+    </div>
+    <!-- Houses Grid -->
+    <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+      <Card
+        v-for="house in houses"
+        :key="house.id"
+        :class="['cursor-pointer transition-all duration-300 border-none rounded-3xl overflow-hidden shadow-lg hover:-translate-y-3 hover:shadow-2xl', house.name.toLowerCase()]"
+        @click="selectHouse(house)"
+      >
+        <template #header>
+          <div class="h-22 relative flex items-center justify-between p-8 text-white" :style="{ background: getHouseGradient(house.name) }">
+            <div class="text-5xl opacity-80">
+              <FontAwesomeIcon :icon="getHouseIcon(house.name)" />
             </div>
-
-            <div class="mt-4">
+            <div class="absolute right-8 top-1/2 -translate-y-1/2">
+              <div class="w-15 h-15 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-2xl font-bold border-2 border-white/30">
+                {{ house.name.charAt(0) }}
+              </div>
+            </div>
+          </div>
+        </template>
+        <template #title>
+          <div class="flex flex-col md:flex-row justify-between items-center mb-4 ">
+            <h2 class="text-3xl font-bold m-0" :class="getHouseNameColor(house.name)">{{ house.name }}</h2>
+            <div class="flex items-center">
+              <span class="text-sm mr-2">House pts:</span>
+              <Badge
+                :value="house.housePoints || 0"
+                severity="secondary"
+                class="font-semibold"
+                size="large"
+              >
+                <template #default>
+                  {{ house.housePoints || 0 }}
+                </template>
+              </Badge>
+            </div>
+          </div>
+        </template>
+        <template #content>
+          <div class="px-4 pb-4">
+            <div class="mb-6">
+              <div class="flex items-center mb-2 text-gray-600">
+                <FontAwesomeIcon :icon="faCrown" class="mr-2 w-5 text-purple-600" />
+                <span class="text-lg">{{ house.founder }}</span>
+              </div>
+              <div class="flex items-center mb-2 text-gray-600">
+                <FontAwesomeIcon :icon="faPaw" class="mr-2 w-5 text-purple-600" />
+                <span>{{ house.animal }}</span>
+              </div>
+              <div class="flex items-center mb-2 text-gray-600">
+                <FontAwesomeIcon :icon="faPalette" class="mr-2 w-5 text-purple-600" />
+                <span>{{ house.houseColours }}</span>
+              </div>
+            </div>
+            <div class="mb-6">
+              <h4 class="mb-2 text-gray-800 font-semibold">House Traits</h4>
+              <div class="flex flex-wrap gap-2 mb-6">
+                <Chip
+                  v-for="trait in house.traits?.slice(0, 3)"
+                  :key="trait.id"
+                  :label="trait.name"
+                  class="text-sm"
+                />
+                <Chip
+                  v-if="house.traits?.length > 3"
+                  :label="`+${house.traits.length - 3} more`"
+                  class="text-sm !bg-gray-200 !text-gray-600"
+                />
+              </div>
+            </div>
+            <div class="flex flex-col md:flex-row gap-2 justify-between">
               <Button
-                label="Award 10 Points"
-                @click="
-                  updateHousePoints(
-                    tableData.selectedHouse.id,
-                    tableData.selectedHouse.house_points + 10,
-                  )
-                "
+                label="View Details"
+                icon="fas fa-eye"
+                class="flex-1"
+                outlined
+              />
+              <Button
+                v-if="isAdmin"
+                label="Award Points"
+                icon="fas fa-plus"
+                class="flex-shrink-0"
+                @click.stop="awardPoints(house, 10)"
+                size="small"
+              />
+              <Button
+                v-if="myHouse?.id !== house.id"
+                label="My House"
+                icon="fas fa-heart"
+                @click.stop="setMyHouse(house)"
+                outlined
+                class="flex-shrink-0 !bg-gradient-to-r !from-red-400 !to-red-500 !border-none !text-gray-800 font-semibold"
               />
             </div>
           </div>
+        </template>
+      </Card>
+    </div>
+    <!-- Details Dialog -->
+    <Dialog
+      v-model:visible="showDetailsDialog"
+      :header="selectedHouse?.name + ' House Details'"
+      :modal="true"
+      :style="{ width: '50rem' }"
+      :breakpoints="{ '1199px': '75vw', '575px': '90vw' }"
+    >
+      <div v-if="selectedHouse" class="p-0">
+        <div class="p-8 text-white flex items-center gap-8 -mx-6 -mt-6 mb-0" :style="{ background: getHouseGradient(selectedHouse.name) }">
+          <div class="w-25 h-25 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-4xl font-bold border-2 border-white/30">
+            {{ selectedHouse.name.charAt(0) }}
+          </div>
+          <div class="flex-1">
+            <h2 class="m-0 mb-2 text-4xl font-bold">{{ selectedHouse.name }}</h2>
+            <p class="m-0 mb-4 opacity-90 text-lg">Founded by {{ selectedHouse.founder }}</p>
+            <div class="flex align-center gap-2">
+              <Badge
+                :value="selectedHouse.housePoints || 0"
+                severity="secondary"
+                size="large"
+              >
+                <template #default>
+                  {{ selectedHouse.housePoints || 0 }}
+                </template>
+              </Badge>
+              <span class="self-end">House Points</span>
+            </div>
+          </div>
         </div>
-      </template>
-    </Card>
+
+        <div class="p-8">
+          <div class="mb-8">
+            <h3 class="flex items-center gap-2 mb-4 text-gray-800 text-xl font-semibold">
+              <FontAwesomeIcon :icon="faInfoCircle" class="text-purple-600" />
+              House Information
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="py-2 border-b border-gray-200">
+                <strong class="mr-2">Animal:</strong> {{ selectedHouse.animal }}
+              </div>
+              <div class="py-2 border-b border-gray-200">
+                <strong class="mr-2">Element:</strong> {{ selectedHouse.element }}
+              </div>
+              <div class="py-2 border-b border-gray-200">
+                <strong class="mr-2">Ghost:</strong> {{ selectedHouse.ghost }}
+              </div>
+              <div class="py-2 border-b border-gray-200">
+                <strong class="mr-2">Common Room:</strong> {{ selectedHouse.commonRoom }}
+              </div>
+              <div class="py-2 border-b border-gray-200 md:col-span-2">
+                <strong class="mr-2">Colors:</strong> {{ selectedHouse.houseColours }}
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-8">
+            <h3 class="flex items-center gap-2 mb-4 text-gray-800 text-xl font-semibold">
+              <FontAwesomeIcon :icon="faUsers" class="text-purple-600" />
+              House Heads
+            </h3>
+            <div class="flex flex-wrap gap-4">
+              <div v-for="head in selectedHouse.heads" :key="head.id" class="flex items-center gap-2 py-2 px-4 bg-gray-50 rounded-full text-gray-800">
+                <FontAwesomeIcon :icon="faUserTie" class="text-2xl" />
+                {{ head.firstName }} {{ head.lastName }}
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-8">
+            <h3 class="flex items-center gap-2 mb-4 text-gray-800 text-xl font-semibold">
+              <FontAwesomeIcon :icon="faHeart" class="text-purple-600" />
+              Traits
+            </h3>
+            <div class="flex flex-wrap gap-2">
+              <Chip
+                v-for="trait in selectedHouse.traits"
+                :key="trait.id"
+                :label="trait.name"
+                class="text-sm py-2 px-4"
+              />
+            </div>
+          </div>
+          <div class="flex gap-4 justify-center pt-4 border-t border-gray-200">
+            <Button
+              v-if="isAdmin"
+              label="Award 10 Points"
+              icon="fas fa-plus"
+              @click="awardPoints(selectedHouse, 10)"
+              class="py-3 px-6"
+            />
+            <Button
+              v-if="isAdmin"
+              label="Award 25 Points"
+              icon="fas fa-star"
+              @click="awardPoints(selectedHouse, 25)"
+              class="py-3 px-6 !bg-gradient-to-r !from-yellow-400 !to-yellow-500 !border-none !text-gray-800 font-semibold"
+            />
+            <Button
+              v-if="myHouse?.id !== selectedHouse.id"
+              label="My House"
+              icon="fas fa-heart"
+              @click.stop="setMyHouse(selectedHouse)"
+              outlined
+              class="flex-shrink-0 !bg-gradient-to-r !from-red-400 !to-red-500 !border-none !text-gray-800 font-semibold"
+            />
+          </div>
+        </div>
+      </div>
+    </Dialog>
   </div>
 </template>
 
 <style scoped>
-.house-row {
-  padding: 4px;
-  margin: 2px 0;
-  border-radius: 4px;
+.house-background {
+  background-image: url('../assets/images/hogwarts-legacy.jpg');
 }
 
-.gryffindor {
-  background-color: rgba(174, 0, 1, 0.1);
+.gryffindor .house-name {
+  color: #ae0001;
 }
 
-.hufflepuff {
-  background-color: rgba(240, 199, 94, 0.1);
+.hufflepuff .house-name {
+  color: #ffdb00;
 }
 
-.ravenclaw {
-  background-color: rgba(34, 47, 91, 0.1);
+.ravenclaw .house-name {
+  color: #0e1a40;
 }
 
-.slytherin {
-  background-color: rgba(26, 71, 42, 0.1);
+.slytherin .house-name {
+  color: #1a472a;
+}
+
+@media (max-width: 768px) {
+  .dialog-header {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+  }
 }
 </style>

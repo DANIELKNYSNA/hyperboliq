@@ -1,415 +1,782 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch, computed, nextTick } from 'vue'
-import { useQuery } from '@tanstack/vue-query'
+import { ref, reactive, onMounted, computed, inject } from 'vue'
 import Card from 'primevue/card'
-import Column from 'primevue/column'
 import Button from 'primevue/button'
-import Dropdown from 'primevue/dropdown'
+import Autocomplete from 'primevue/autocomplete'
 import InputText from 'primevue/inputtext'
+import Badge from 'primevue/badge'
+import Skeleton from 'primevue/skeleton'
+import Dialog from 'primevue/dialog'
+import Divider from 'primevue/divider'
+import Chip from 'primevue/chip'
+import Message from 'primevue/message'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { faFlask, faMagic, faIndustry, faUser, faLeaf, faFilter, faExclamationTriangle, faClock, faHeart, faHeartBroken } from '@fortawesome/free-solid-svg-icons'
+import { library } from '@fortawesome/fontawesome-svg-core'
+import type { ApiClientsImpl } from '@/Api/ApiClients'
+import type { ElixirInterface } from '@/interfaces/elixirs'
+import { useElixirStore } from '@/stores/elixirStore'
 
-interface Elixir {
-  id: string
-  name: string
-  effect: string
-  difficulty: string
-  ingredients?: string[]
-}
+library.add(faFlask, faMagic, faIndustry, faUser, faLeaf, faFilter, faExclamationTriangle, faClock, faHeart, faHeartBroken)
 
-const elixirs = ref<Elixir[]>([
-  { id: '1', name: 'Felix Felicis', effect: 'Grants luck', difficulty: 'Advanced' },
-  { id: '2', name: 'Amortentia', effect: 'Powerful love potion', difficulty: 'Advanced' },
-  { id: '3', name: 'Polyjuice Potion', effect: 'Transforms appearance', difficulty: 'Challenging' },
-  { id: '4', name: 'Veritaserum', effect: 'Forces truth-telling', difficulty: 'Master' },
-  { id: '5', name: 'Pepperup Potion', effect: 'Cures common cold', difficulty: 'Beginner' },
-])
+const apiClients = inject<ApiClientsImpl>('apiClients')
+const loading = ref(false)
+const loadingMore = ref(false)
+const fetchError = ref<string | null>(null)
+const elixirStore = useElixirStore()
+const elixirs = computed(() => elixirStore.elixirs || [])
+const likedElixirs = computed(() => elixirStore.likedElixirs || [])
+const selectedElixir = computed(() => elixirStore.selectedElixir)
+const showDetailsDialog = ref(false)
 
-let selectedElixir = {
-  id: '',
-  name: '',
-  effect: '',
-  difficulty: '',
-}
+// Lazy loading state
+const ITEMS_PER_PAGE = 12
+const currentPage = ref(1)
 
-var globalFilters = reactive({
+const globalFilters = reactive({
   nameFilter: '',
   difficultyFilter: '',
 })
 
-// Global variable outside Vue scope
-var renderedElixirs = []
-
-onMounted(() => {
-  document.title = 'Magical Elixirs'
-
-  window.addEventListener('resize', () => {
-    console.log('Window resized')
-    refreshTable()
-  })
-
-  setInterval(() => {
-    if (Math.random() > 0.9) {
-      refreshTable()
-    }
-  }, 10000)
-
-  setTimeout(() => {
-    elixirs.value.push({
-      id: '6',
-      name: 'Draught of Living Death',
-      effect: 'Causes deep sleep',
-      difficulty: 'Advanced',
-    })
-
-    // Direct DOM manipulation instead of using reactivity
-    const container = document.getElementById('elixir-container')
-    if (container) {
-      const div = document.createElement('div')
-      div.className = 'elixir-item'
-      div.innerHTML = `<h4>Draught of Living Death</h4><p>Effect: Causes deep sleep</p><p>Difficulty: Advanced</p>`
-      container.appendChild(div)
-    }
-  }, 2000)
-
-  // Immediately render initial elixirs to DOM directly
-  renderElixirsDirectly()
-})
-
-// Bad practice: Using innerHTML directly and eval
-function renderElixirsDirectly() {
-  const container = document.getElementById('elixir-container')
-  if (!container) return
-
-  container.innerHTML = ''
-
-  // Using global variable
-  renderedElixirs = [...elixirs.value]
-
-  // Unsafe use of eval for no reason
-  eval('renderedElixirs.forEach(e => { addElixirToDOM(e) })')
-}
-
-// Direct DOM manipulation instead of using Vue's templating
-function addElixirToDOM(elixir) {
-  const container = document.getElementById('elixir-container')
-  if (!container) return
-
-  const div = document.createElement('div')
-  div.id = 'elixir-' + elixir.id // Creating duplicate IDs potentially
-  div.className = 'elixir-item ' + elixir.difficulty.toLowerCase()
-
-  // Using innerHTML instead of safer methods
-  div.innerHTML = `
-    <h4>${elixir.name}</h4>
-    <p>Effect: ${elixir.effect}</p>
-    <p>Difficulty: ${elixir.difficulty}</p>
-    <div class="buttons">
-      <button onclick="window.selectElixirById('${elixir.id}')">View</button>
-      <button onclick="window.deleteElixirById('${elixir.id}')">Delete</button>
-    </div>
-  `
-
-  container.appendChild(div)
-}
+const difficultyOptions = [
+  { label: 'All Difficulties', value: '' },
+  { label: 'Unknown', value: 'Unknown' },
+  { label: 'Beginner', value: 'Beginner' },
+  { label: 'Intermediate', value: 'Intermediate' },
+  { label: 'Advanced', value: 'Advanced' },
+  { label: 'Expert', value: 'Expert' },
+]
 
 const filteredElixirs = computed(() => {
-  console.log('Filtering elixirs...')
-  document.querySelector('.filter-status')?.setAttribute('data-filtered', 'true')
+  if (!elixirs.value) return []
 
-  // Side effect in computed - directly manipulating DOM
-  const container = document.getElementById('elixir-container')
-  if (container) {
-    const items = container.querySelectorAll('.elixir-item')
-    items.forEach((item) => {
-      item.style.display = 'block'
-    })
-  }
-
-  return elixirs.value.filter((e) => {
-    return (
-      e.name.toLowerCase().includes(globalFilters.nameFilter.toLowerCase()) &&
-      (globalFilters.difficultyFilter === '' || e.difficulty === globalFilters.difficultyFilter)
-    )
+  return elixirs.value.filter((elixir) => {
+    const nameMatch = elixir.name.toLowerCase().includes(globalFilters.nameFilter.toLowerCase())
+    const difficultyMatch = !globalFilters.difficultyFilter || elixir.difficulty === globalFilters.difficultyFilter
+    return nameMatch && difficultyMatch
   })
 })
 
-// Exposing functions to window - bad practice
-window.selectElixirById = function (id) {
-  const elixir = elixirs.value.find((e) => e.id === id)
-  if (elixir) {
-    // Direct assignment instead of using reactive
-    selectedElixir = elixir
+const paginatedElixirs = computed(() => {
+  const totalItems = currentPage.value * ITEMS_PER_PAGE
+  return filteredElixirs.value.slice(0, totalItems)
+})
 
-    // Update DOM directly
-    document.getElementById('selected-elixir-name').textContent = elixir.name
-    document.getElementById('selected-elixir-effect').textContent = elixir.effect
-    document.getElementById('selected-elixir-difficulty').textContent = elixir.difficulty
+const hasMoreToLoad = computed(() => {
+  return paginatedElixirs.value.length < filteredElixirs.value.length
+})
 
-    document.getElementById('selected-elixir-panel').style.display = 'block'
+const isElixirLiked = (elixir: ElixirInterface) => {
+  return likedElixirs.value.some(likedElixir => likedElixir.id === elixir.id)
+}
+
+const toggleLike = (elixir: ElixirInterface) => {
+  if (isElixirLiked(elixir)) {
+    // Remove from liked elixirs
+    const index = likedElixirs.value.findIndex(likedElixir => likedElixir.id === elixir.id)
+    if (index > -1) {
+      elixirStore.likedElixirs.splice(index, 1)
+    }
+  } else {
+    // Add to liked elixirs
+    if (!elixirStore.likedElixirs) {
+      elixirStore.likedElixirs = []
+    }
+    elixirStore.likedElixirs.push(elixir)
   }
 }
 
-window.deleteElixirById = function (id) {
-  // Modify the array directly
-  elixirs.value = elixirs.value.filter((e) => e.id !== id)
-
-  // Remove from DOM directly
-  const element = document.getElementById('elixir-' + id)
-  if (element) {
-    element.parentNode.removeChild(element)
+const getDifficultySeverity = (difficulty: string) => {
+  const severityMap: Record<string, string> = {
+    'Unknown': 'secondary',
+    'Beginner': 'success',
+    'Intermediate': 'info',
+    'Advanced': 'warning',
+    'Expert': 'danger'
   }
+  return severityMap[difficulty] || 'secondary'
 }
 
 const fetchElixirs = async () => {
-  await new Promise((resolve) => setTimeout(resolve, 500))
+  loading.value = true
+  fetchError.value = null
+  currentPage.value = 1
 
-  if (Math.random() > 0.8) {
-    throw new Error('Network error')
+  if (!apiClients) {
+    fetchError.value = 'API client not available'
+    loading.value = false
+    return
   }
-
-  return elixirs.value
+  try {
+    const response = await apiClients.serviceElixirsClient.getElixirs()
+    if (response && response.data) {
+      elixirStore.elixirs = response.data as ElixirInterface[]
+    } else {
+      fetchError.value = 'No elixirs found'
+    }
+  } catch (error) {
+    fetchError.value = 'Failed to fetch elixirs'
+    console.error('Error fetching elixirs:', error)
+  } finally {
+    loading.value = false
+  }
 }
 
-// Overly verbose watchers
-watch(
-  () => globalFilters.nameFilter,
-  (newVal) => {
-    console.log('Name filter changed:', newVal)
-    // Inefficient - directly manipulating DOM in response to reactive change
-    const container = document.getElementById('elixir-container')
-    if (container) {
-      const items = container.querySelectorAll('.elixir-item')
-      items.forEach((item) => {
-        const name = item.querySelector('h4').textContent.toLowerCase()
-        if (!name.includes(newVal.toLowerCase())) {
-          item.style.display = 'none'
-        } else {
-          item.style.display = 'block'
-        }
-      })
-    }
-  },
-)
+const loadMoreElixirs = async () => {
+  if (loadingMore.value || !hasMoreToLoad.value) return
 
-watch(
-  () => globalFilters.difficultyFilter,
-  (newVal) => {
-    console.log('Difficulty filter changed:', newVal)
-    // More direct DOM manipulation
-    const container = document.getElementById('elixir-container')
-    if (container) {
-      const items = container.querySelectorAll('.elixir-item')
-      items.forEach((item) => {
-        if (newVal && !item.classList.contains(newVal.toLowerCase())) {
-          item.style.display = 'none'
-        } else {
-          item.style.display = 'block'
-        }
-      })
-    }
-  },
-)
+  loadingMore.value = true
 
-const { data, isLoading, error } = useQuery({
-  queryKey: ['elixirs'],
-  queryFn: fetchElixirs,
+  // Simulate loading delay for better UX
+  await new Promise(resolve => setTimeout(resolve, 500))
+
+  currentPage.value += 1
+  loadingMore.value = false
+}
+
+const selectElixir = (elixir: ElixirInterface) => {
+  elixirStore.selectedElixir = elixir
+  showDetailsDialog.value = true
+}
+
+const deleteElixir = async (id: string) => {
+  elixirStore.deleteElixir(id)
+  elixirStore.selectedElixir = null
+}
+
+const clearFilters = () => {
+  globalFilters.nameFilter = ''
+  globalFilters.difficultyFilter = ''
+  currentPage.value = 1
+}
+
+const hasActiveFilters = computed(() => {
+  return globalFilters.nameFilter || globalFilters.difficultyFilter
 })
 
-// Directly mutating an object
-function selectElixir(elixir) {
-  selectedElixir = elixir
+const resetPaginationOnFilterChange = () => {
+  currentPage.value = 1
 }
 
-// Using both DOM API and Vue reactivity - inconsistent
-function refreshTable() {
-  nextTick(() => {
-    // Direct DOM manipulation
-    const rows = document.querySelectorAll('.elixir-item')
-    rows.forEach((row) => {
-      row.style.opacity = '0.8'
-      setTimeout(() => {
-        row.style.opacity = '1'
-      }, 300)
-    })
-
-    // Re-render after manipulation
-    renderElixirsDirectly()
-  })
+const watchFilters = () => {
+  resetPaginationOnFilterChange()
 }
 
-const difficultiesOptions = [
-  { label: 'All', value: '' },
-  { label: 'Beginner', value: 'Beginner' },
-  { label: 'Challenging', value: 'Challenging' },
-  { label: 'Advanced', value: 'Advanced' },
-  { label: 'Master', value: 'Master' },
-]
-
-const items = ref([])
-
-function deleteElixir(id) {
-  console.log('Deleting elixir', id)
-  elixirs.value = elixirs.value.filter((e) => e.id !== id)
-}
-
-// Bad practice - updating DOM on data change
-watch(
-  () => data.value,
-  (newData) => {
-    if (newData) {
-      // Direct DOM update instead of letting Vue handle it
-      renderElixirsDirectly()
-    }
-  },
-)
+onMounted(() => {
+  document.title = 'Magical Elixirs'
+  if (!elixirs.value || elixirs.value.length === 0) {
+    fetchElixirs()
+  }
+})
 </script>
 
 <template>
-  <div>
-    <Card class="mb-4">
-      <template #title>Elixirs</template>
+  <div class="elixirs-page">
+    <div class="fixed top-0 left-0 w-full h-full bg-cover bg-center bg-no-repeat -z-30 elixir-background"></div>
+    <!-- Header Card -->
+    <Card class="mb-6">
+      <template #title>
+        <div class="flex items-center gap-3">
+          <FontAwesomeIcon :icon="faFlask" class="text-3xl text-purple-600" />
+          <h3>Magical Elixirs</h3>
+          <Badge v-if="likedElixirs.length > 0" :value="`${likedElixirs.length} liked`" severity="danger" class="ml-auto">
+            <FontAwesomeIcon :icon="faHeart" class="mr-1 text-xs" />
+            {{ likedElixirs.length }}
+          </Badge>
+        </div>
+      </template>
       <template #subtitle>
-        <div class="filter-status">
-          <div v-if="globalFilters.nameFilter || globalFilters.difficultyFilter">
-            Active filters
+        <div class="flex items-center justify-between">
+          <p>Discover and explore magical potions and elixirs</p>
+          <div v-if="hasActiveFilters" class="flex items-center gap-2">
+            <Badge value="Filtered" severity="info" />
+            <Button
+              label="Clear Filters"
+              size="small"
+              severity="secondary"
+              outlined
+              @click="clearFilters"
+            />
           </div>
         </div>
       </template>
       <template #content>
-        <!-- Using v-if and v-for on the same element -->
-        <div class="filter-container mb-4 flex gap-4" v-if="!isLoading" v-for="i in [1]" :key="i">
-          <!-- Same ID used twice -->
-          <div class="filter-item">
-            <label for="name-filter">Filter by name</label>
-            <InputText id="name-filter" v-model="globalFilters.nameFilter" />
-          </div>
-          <div class="filter-item">
-            <label for="name-filter">Filter by difficulty</label>
-            <Dropdown
-              id="name-filter"
-              v-model="globalFilters.difficultyFilter"
-              :options="difficultiesOptions"
-              optionLabel="label"
-              optionValue="value"
-            />
-          </div>
-        </div>
-
-        <p class="mb-4">Explore magical elixirs and potions from the wizarding world.</p>
-
-        <div v-if="isLoading" class="flex justify-center py-4">Loading elixirs...</div>
-        <div v-if="error" class="text-red-500">An error occurred while loading elixirs.</div>
-
-        <!-- Missing key in v-for -->
-        <div class="elixir-grid">
-          <!-- Mixing v-if, v-show and v-for on same element -->
-          <div
-            v-for="elixir in filteredElixirs"
-            v-show="elixir.id !== 'hidden'"
-            class="elixir-card"
-            :style="`background-color: ${elixir.difficulty === 'Advanced' ? '#f8f0ff' : '#ffffff'}`"
-          >
-            <h3 v-html="elixir.name"></h3>
-            <p v-html="`Effect: ${elixir.effect}`"></p>
-            <p>Difficulty: {{ elixir.difficulty }}</p>
-            <div class="action-buttons">
-              <Button icon="pi pi-pencil" severity="info" @click="selectElixir(elixir)" />
-              <Button icon="pi pi-trash" severity="danger" @click="deleteElixir(elixir.id)" />
+        <!-- Filters -->
+        <div class="filter-container">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div class="field">
+              <label for="nameFilter" class="block text-sm font-medium mb-2">
+                <FontAwesomeIcon :icon="faFilter" class="mr-1" />
+                Search by Name
+              </label>
+              <InputText
+                id="nameFilter"
+                v-model="globalFilters.nameFilter"
+                placeholder="Enter elixir name..."
+                class="w-full"
+                @input="watchFilters"
+              />
+            </div>
+            <div class="field">
+              <label for="difficultyFilter" class="block text-sm font-medium mb-2">
+                Filter by Difficulty
+              </label>
+              <Autocomplete
+                id="difficultyFilter"
+                v-model="globalFilters.difficultyFilter"
+                :options="difficultyOptions"
+                optionLabel="label"
+                optionValue="value"
+                placeholder="Select difficulty"
+                class="w-full"
+                @change="watchFilters"
+              />
+            </div>
+            <div class="field">
+              <Button
+                label="Refresh"
+                @click="fetchElixirs"
+                :loading="loading"
+                class="w-full"
+              />
             </div>
           </div>
         </div>
-
-        <!-- Direct DOM manipulation container -->
-        <div id="elixir-container" class="elixir-manual-container mt-6"></div>
-
-        <!-- Accessing potentially undefined properties -->
-        <div v-if="selectedElixir.id" class="mt-4 p-4 border rounded">
-          <h3 id="selected-elixir-name">{{ selectedElixir.name }}</h3>
-          <p id="selected-elixir-effect">{{ selectedElixir.effect }}</p>
-          <p id="selected-elixir-difficulty">Difficulty: {{ selectedElixir.difficulty }}</p>
-          <div>
-            <strong>Ingredients:</strong>
-            <span v-for="(ingredient, index) in selectedElixir.ingredients" :key="index">
-              {{ ingredient }}{{ index < selectedElixir.ingredients.length - 1 ? ', ' : '' }}
-            </span>
+      </template>
+    </Card>
+    <!-- Error Message -->
+    <Message v-if="fetchError" severity="error" class="mb-4">
+      {{ fetchError }}
+    </Message>
+    <!-- Results Summary -->
+    <div v-if="!loading && elixirs.length > 0" class="mb-4">
+      <p class="show_text">
+        Showing {{ paginatedElixirs.length }} of {{ filteredElixirs.length }} elixirs
+        <span v-if="filteredElixirs.length !== elixirs.length" class="font-medium text-purple-600">
+          ({{ elixirs.length }} total)
+        </span>
+        <span v-if="hasActiveFilters" class="font-medium text-purple-600">
+          (filtered)
+        </span>
+      </p>
+    </div>
+    <!-- Loading State -->
+    <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <Card v-for="n in 6" :key="n" class="elixir-card">
+        <template #content>
+          <div class="space-y-4">
+            <Skeleton height="1.5rem" width="70%" />
+            <Skeleton height="1rem" width="40%" />
+            <Skeleton height="3rem" />
+            <div class="flex gap-2">
+              <Skeleton height="2rem" width="4rem" />
+              <Skeleton height="2rem" width="4rem" />
+            </div>
           </div>
-        </div>
+        </template>
+      </Card>
+    </div>
+    <!-- Elixirs Grid -->
+    <div v-else-if="!loading && paginatedElixirs.length > 0" class="elixirs-grid">
+      <Card
+        v-for="elixir in paginatedElixirs"
+        :key="elixir.id"
+        class="elixir-card"
+      >
+        <template #content>
+          <div class="elixir-content">
+            <div class="flex items-start justify-between mb-3">
+              <div class="flex-1">
+                <div class="flex items-center gap-2 mb-2">
+                  <h3 class="text-lg font-bold">{{ elixir.name }}</h3>
+                  <FontAwesomeIcon
+                    v-if="isElixirLiked(elixir)"
+                    :icon="faHeart"
+                    class="text-red-500 text-sm animate-pulse"
+                  />
+                </div>
+                <Badge
+                  :value="elixir.difficulty"
+                  :severity="getDifficultySeverity(elixir.difficulty)"
+                  class="mb-2"
+                />
+              </div>
+              <div class="flex items-center gap-2">
+                <Button
+                  @click="toggleLike(elixir)"
+                  size="small"
+                  :severity="isElixirLiked(elixir) ? 'danger' : 'secondary'"
+                  :outlined="!isElixirLiked(elixir)"
+                  class="like-btn"
+                >
+                  <FontAwesomeIcon :icon="isElixirLiked(elixir) ? faHeart : faHeartBroken" />
+                </Button>
+                <FontAwesomeIcon :icon="faMagic" class="text-purple-500 text-xl" />
+              </div>
+            </div>
+            <div class="mb-4">
+              <p>{{ elixir.effect }}</p>
+            </div>
+            <div v-if="elixir.sideEffects" class="mb-4">
+              <span class="colored_text text-xs font-semibold text-orange-600 uppercase tracking-wide">Side Effects</span>
+              <p class="colored_text text-sm text-orange-700 mt-1">{{ elixir.sideEffects }}</p>
+            </div>
+            <div class="mb-4 space-y-1">
+              <div v-if="elixir.time" class="text-sm">
+                <strong>Brewing Time:</strong> {{ elixir.time }}
+              </div>
+              <div v-if="elixir.manufacturer" class="text-sm">
+                <strong>Manufacturer:</strong> {{ elixir.manufacturer }}
+              </div>
+            </div>
+            <div v-if="elixir.ingredients && elixir.ingredients.length > 0" class="mb-4">
+              <Badge
+                :value="`${elixir.ingredients.length} Ingredients`"
+                severity="info"
+                class="text-xs"
+              />
+            </div>
+            <div class="action-buttons">
+              <Button
+                label="View Details"
+                severity="info"
+                outlined
+                size="small"
+                @click="selectElixir(elixir)"
+                class="flex-1"
+              />
+              <Button
+                label="Delete Elixir"
+                severity="danger"
+                outlined
+                size="small"
+                @click="deleteElixir(elixir.id)"
+              />
+            </div>
+          </div>
+        </template>
+      </Card>
+    </div>
 
-        <!-- Hidden panel for selected elixir (direct DOM manipulation) -->
-        <div id="selected-elixir-panel" style="display: none" class="mt-4 p-4 border rounded">
-          <h3 id="selected-elixir-name"></h3>
-          <p id="selected-elixir-effect"></p>
-          <p id="selected-elixir-difficulty"></p>
+    <!-- Load More Button -->
+    <div v-if="!loading && paginatedElixirs.length > 0 && hasMoreToLoad" class="text-center mt-8">
+      <Button
+        label="Load More Elixirs"
+        icon="pi pi-chevron-down"
+        severity="info"
+        outlined
+        size="large"
+        :loading="loadingMore"
+        @click="loadMoreElixirs"
+        class="load-more-btn"
+      />
+      <p class="load_more text-sm mt-2">
+        {{ filteredElixirs.length - paginatedElixirs.length }} more elixirs available
+      </p>
+    </div>
+
+    <!-- Loading More Skeletons -->
+    <div v-if="loadingMore" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+      <Card v-for="n in Math.min(ITEMS_PER_PAGE, filteredElixirs.length - paginatedElixirs.length)" :key="`loading-${n}`" class="elixir-card">
+        <template #content>
+          <div class="space-y-4">
+            <Skeleton height="1.5rem" width="70%" />
+            <Skeleton height="1rem" width="40%" />
+            <Skeleton height="3rem" />
+            <div class="flex gap-2">
+              <Skeleton height="2rem" width="4rem" />
+              <Skeleton height="2rem" width="4rem" />
+            </div>
+          </div>
+        </template>
+      </Card>
+    </div>
+
+    <!-- No Results -->
+    <Card v-else-if="!loading && paginatedElixirs.length === 0 && elixirs.length > 0">
+      <template #content>
+        <div class="text-center py-8">
+          <FontAwesomeIcon :icon="faFlask" class="text-6xl text-gray-300 mb-4" />
+          <h3 class="text-xl font-semibold mb-2">No elixirs found</h3>
+          <p class="mb-4">Try adjusting your search criteria</p>
+          <Button
+            label="Clear Filters"
+            severity="secondary"
+            outlined
+            @click="clearFilters"
+            v-if="hasActiveFilters"
+          />
         </div>
       </template>
     </Card>
+
+    <!-- Empty State -->
+    <Card v-else-if="!loading && elixirs.length === 0">
+      <template #content>
+        <div class="text-center py-8">
+          <FontAwesomeIcon :icon="faFlask" class="text-6xl text-gray-300 mb-4" />
+          <h3 class="text-xl font-semibold mb-2">No elixirs available</h3>
+          <p class="mb-4">There are currently no elixirs in the system</p>
+          <Button
+            label="Refresh"
+            icon="pi pi-refresh"
+            @click="fetchElixirs"
+          />
+        </div>
+      </template>
+    </Card>
+
+    <!-- Elixir Details Dialog -->
+    <Dialog
+      v-model:visible="showDetailsDialog"
+      modal
+      header="Elixir Details"
+      :style="{ width: '50vw', minWidth: '350px', maxWidth: '800px' }"
+      class="elixir-details-dialog"
+    >
+      <template #header>
+        <div v-if="selectedElixir" class="flex items-center gap-3">
+          <FontAwesomeIcon :icon="faFlask" class="text-2xl text-purple-600" />
+          <div class="flex-1">
+            <div class="flex items-center gap-2">
+              <h3 class="text-xl font-bold">{{ selectedElixir.name }}</h3>
+            </div>
+            <Badge
+              :value="selectedElixir.difficulty"
+              :severity="getDifficultySeverity(selectedElixir.difficulty)"
+              class="mt-1"
+            />
+          </div>
+          <Button
+            @click="toggleLike(selectedElixir)"
+            size="small"
+            :severity="isElixirLiked(selectedElixir) ? 'danger' : 'secondary'"
+            :outlined="!isElixirLiked(selectedElixir)"
+            class="like-btn-dialog"
+          >
+            <FontAwesomeIcon :icon="isElixirLiked(selectedElixir) ? faHeart : faHeartBroken" />
+          </Button>
+        </div>
+      </template>
+
+      <div v-if="selectedElixir" class="space-y-6">
+        <div class="effect-section">
+          <h3 class="text-lg font-semibold mb-3 flex items-center gap-2">
+            <FontAwesomeIcon :icon="faMagic" class="text-purple-600" />
+            Primary Effect
+          </h3>
+          <div class="bg-purple-50 border-l-4 border-purple-400 p-4 rounded-r-lg">
+            <p class="leading-relaxed">{{ selectedElixir.effect }}</p>
+          </div>
+        </div>
+        <div v-if="selectedElixir.sideEffects" class="side-effects-section">
+          <h3 class="text-lg font-semibold mb-3 flex items-center gap-2">
+            <FontAwesomeIcon :icon="faExclamationTriangle" class="text-orange-600" />
+            Side Effects
+          </h3>
+          <div class="bg-orange-50 border-l-4 border-orange-400 p-4 rounded-r-lg">
+            <p class="leading-relaxed">{{ selectedElixir.sideEffects }}</p>
+          </div>
+        </div>
+        <div v-if="selectedElixir.characteristics" class="characteristics-section">
+          <h3 class="text-lg font-semibold mb-3 flex items-center gap-2">
+            <FontAwesomeIcon :icon="faMagic" class="text-blue-600" />
+            Characteristics
+          </h3>
+          <div class="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg">
+            <p class="text-gray-800 leading-relaxed">{{ selectedElixir.characteristics }}</p>
+          </div>
+        </div>
+        <Divider />
+        <div class="details-grid">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div v-if="selectedElixir.time" class="detail-item">
+              <div class="flex items-center gap-2 mb-2">
+                <FontAwesomeIcon :icon="faClock" class="text-green-600" />
+                <h4 class="font-semibold text-gray-800">Brewing Time</h4>
+              </div>
+              <p class="text-gray-700 pl-6">{{ selectedElixir.time }}</p>
+            </div>
+            <div v-if="selectedElixir.manufacturer" class="detail-item">
+              <div class="flex items-center gap-2 mb-2">
+                <FontAwesomeIcon :icon="faIndustry" class="text-blue-600" />
+                <h4 class="font-semibold text-gray-800">Manufacturer</h4>
+              </div>
+              <p class="text-gray-700 pl-6">{{ selectedElixir.manufacturer }}</p>
+            </div>
+          </div>
+        </div>
+        <div v-if="selectedElixir.inventors && selectedElixir.inventors.length > 0" class="inventors-section">
+          <h3 class="text-lg font-semibold mb-3 flex items-center gap-2">
+            <FontAwesomeIcon :icon="faUser" class="text-indigo-600" />
+            Inventors
+          </h3>
+          <div class="flex flex-wrap gap-2">
+            <Chip
+              v-for="inventor in selectedElixir.inventors"
+              :key="inventor.id"
+              :label="`${inventor.firstName} ${inventor.lastName}`"
+              class="bg-indigo-100 text-indigo-800"
+            />
+          </div>
+        </div>
+        <div v-if="selectedElixir.ingredients && selectedElixir.ingredients.length > 0" class="ingredients-section">
+          <h3 class="text-lg font-semibold mb-3 flex items-center gap-2">
+            <FontAwesomeIcon :icon="faLeaf" class="text-green-600" />
+            Ingredients
+            <Badge :value="selectedElixir.ingredients.length" severity="success" />
+          </h3>
+          <div class="ingredients-grid">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div
+                v-for="ingredient in selectedElixir.ingredients"
+                :key="ingredient.id"
+                class="ingredient-card"
+              >
+                <div class="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <FontAwesomeIcon :icon="faLeaf" class="text-green-600 text-sm" />
+                  <span class="text-gray-800 font-medium">{{ ingredient.name }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <Button
+            label="Close"
+            icon="pi pi-times"
+            severity="secondary"
+            outlined
+            @click="showDetailsDialog = false"
+          />
+          <Button
+            label="Delete Elixir"
+            icon="pi pi-trash"
+            severity="danger"
+            outlined
+            @click="deleteElixir(selectedElixir?.id || ''); showDetailsDialog = false"
+          />
+        </div>
+      </template>
+    </Dialog>
   </div>
 </template>
 
 <style scoped>
+.elixirs-page {
+  padding: 1rem;
+}
+
+.elixir-background {
+  background-image: url('../assets/images/hogwarts-legacy.jpg');
+  background-attachment: fixed;
+}
+
 .filter-container {
-  margin-bottom: 20px !important;
+  background: rgba(103, 126, 234, 0.05);
+  border-radius: 8px;
+  padding: 1.5rem;
+  border-left: 4px solid #667eea;
 }
 
-div.filter-item label {
-  margin-right: 8px;
-  font-weight: bold;
+.elixirs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
 }
 
-/* Empty rule */
-.p-datatable-row {
+.elixir-card {
+  transition: all 0.3s ease;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
-:deep(.p-button) {
-  background: #6366f1 !important;
+.elixir-card :deep(.p-card-body) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
-/* Overly specific selectors */
-div.elixir-grid div.elixir-card {
-  border: 1px solid #eaeaea;
-  padding: 15px;
-  margin-bottom: 15px;
-  border-radius: 4px;
+.elixir-card :deep(.p-card-content) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.elixir-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.elixir-content {
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.elixir-content .action-buttons {
+  margin-top: auto;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.field label {
+  color: #374151;
+  font-weight: 500;
+}
+
+.load-more-btn {
+  min-width: 200px;
   transition: all 0.3s ease;
 }
 
-/* !important overrides */
-.elixir-card h3 {
-  color: #4338ca !important;
-  font-size: 18px !important;
+.load-more-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-/* Inline important */
-.elixir-manual-container {
-  display: flex !important;
-  flex-wrap: wrap !important;
-  gap: 10px !important;
+/* Like button styles */
+.like-btn, .like-btn-dialog {
+  transition: all 0.3s ease;
 }
 
-/* Duplicate selectors with different rules */
-.elixir-item {
-  border: 1px solid #ddd;
-  padding: 10px;
-  margin-bottom: 10px;
-  border-radius: 4px;
-  background-color: white;
+.like-btn:hover, .like-btn-dialog:hover {
+  transform: scale(1.1);
 }
 
-.elixir-item {
-  width: calc(33% - 10px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+.like-btn.p-button-danger:not(.p-button-outlined),
+.like-btn-dialog.p-button-danger:not(.p-button-outlined) {
+  animation: heartbeat 0.6s ease-in-out;
 }
 
-/* Contradictory rules */
-.action-buttons {
-  display: flex;
-  gap: 8px;
+@keyframes heartbeat {
+  0% { transform: scale(1); }
+  25% { transform: scale(1.2); }
+  50% { transform: scale(1.1); }
+  75% { transform: scale(1.15); }
+  100% { transform: scale(1); }
 }
 
-.action-buttons {
-  display: block;
+/* Elixir Details Dialog Styles */
+.elixir-details-dialog :deep(.p-dialog-header) {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 8px 8px 0 0;
 }
 
-/* Empty media query */
+.elixir-details-dialog :deep(.p-dialog-content) {
+  padding: 1.5rem;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.elixir-details-dialog :deep(.p-dialog-footer) {
+  padding: 1rem 1.5rem;
+  background: #f8f9fa;
+  border-radius: 0 0 8px 8px;
+}
+
+.effect-section,
+.side-effects-section,
+.characteristics-section {
+  margin-bottom: 1rem;
+}
+
+.detail-item {
+  background: rgba(103, 126, 234, 0.05);
+  border-radius: 8px;
+  padding: 1rem;
+  border-left: 3px solid #667eea;
+}
+
+.inventors-section .p-chip {
+  font-size: 0.875rem;
+}
+
+.ingredients-grid .ingredient-card {
+  transition: all 0.2s ease;
+}
+
+.ingredients-grid .ingredient-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive Design */
 @media (max-width: 768px) {
+  .elixirs-page {
+    padding: 0.5rem;
+  }
+
+  .elixirs-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-container {
+    padding: 1rem;
+  }
+
+  .filter-container .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .action-buttons {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .action-buttons .p-button {
+    width: 100%;
+  }
+}
+
+.show_text {
+  color: rgb(233, 233, 234);
+  font-weight: 500;
+}
+
+.dark span {
+  color: rgb(44, 43, 43) !important;
+}
+
+.dark label, .dark h3 {
+  color: rgb(232, 230, 230) !important;
+}
+
+.dark .leading-relaxed {
+  color: rgb(36, 36, 36) !important;
+}
+
+.dark .colored_text {
+  color: rgb(230, 224, 224) !important;
+}
+
+.dark .p-button-outlined.p-button-secondary {
+  color: rgb(223, 223, 223) !important;
+  background-color: rgb(130, 130, 130);
+}
+
+.load_more {
+  color: rgb(223, 223, 223) !important;
+}
+
+/* Pulse animation for liked elixirs indicator */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.animate-pulse {
+  animation: pulse 2s infinite;
 }
 </style>

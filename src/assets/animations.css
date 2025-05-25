@@ -1,0 +1,13 @@
+
+.bg-radial-burn {
+  background: radial-gradient(
+    circle at center,
+    transparent 0%,
+    transparent 45%,
+    rgba(0, 0, 0, 0.1) 55%,
+    rgba(0, 0, 0, 0.3) 65%,
+    rgba(0, 0, 0, 0.6) 75%,
+    rgba(0, 0, 0, 0.8) 85%,
+    rgba(0, 0, 0, 0.95) 100%
+  ) !important;
+}

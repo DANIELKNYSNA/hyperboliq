@@ -8,6 +8,7 @@ import Aura from '@primeuix/themes/aura'
 import { VueQueryPlugin } from '@tanstack/vue-query'
 import { definePreset } from '@primeuix/themes'
 import '@fortawesome/fontawesome-free/css/all.min.css'
+import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 
 import App from './App.vue'
 import router from './router'
@@ -31,7 +32,9 @@ const wizardingPreset = definePreset(Aura, {
 
 const app = createApp(App)
 
-app.use(createPinia())
+const pinia = createPinia()
+pinia.use(piniaPluginPersistedstate)
+app.use(pinia)
 app.use(router)
 app.use(PrimeVue, {
   theme: {

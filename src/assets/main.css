@@ -1,11 +1,12 @@
 @import 'tailwindcss';
 @import './base.css';
 @import './nav.css';
+@import './darkMode.css';
+@import './typography.css';
+@import './animations.css';
 
 #app {
-  max-width: 1280px;
   margin: 0 auto;
-  padding: 2rem;
   font-weight: normal;
 }
 
@@ -55,4 +56,12 @@
 .btn-primary:focus {
   outline: 2px solid var(--color-primary-light);
   outline-offset: 2px;
+}
+
+.p-card-body {
+  background-color: #e3e1e1;
+}
+
+.p-card {
+  background-color: #e3e1e1 !important;
 }

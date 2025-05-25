@@ -1,13 +1,20 @@
-.dark .p-card {
+.dark .p-card-body {
   background-color: #2d3748;
-  color: #f7fafc;
 }
 
 .dark .p-card .p-card-title {
   color: #f7fafc;
 }
 
-.dark .p-card .p-card-content {
+.dark .p-card .p-card-content,
+.dark .p-card .p-card-content p,
+.dark .p-card .p-card-content span,
+.dark .p-card .p-card-content h1,
+.dark .p-card .p-card-content h2,
+.dark .p-card .p-card-content h3,
+.dark .p-card .p-card-content h4,
+.dark .p-card .p-card-content h5
+{
   color: #e2e8f0;
 }
 
@@ -21,7 +28,48 @@
   border-color: #5b21b6;
 }
 
-.dark .p-card-body {
-  background-color: #2d3748;
+.dark .p-button-outlined {
+  background-color: #706f6f;
   color: #f7fafc;
+}
+
+.dark .p-button-outlined:hover {
+  background-color: #9c9c9c !important;
+  color: #242424 !important;
+}
+
+.dark .custom-menubar {
+  background-color: #353434 !important;
+}
+
+.dark .custom-menubar .p-menubar,
+.dark .custom-menubar .p-menuitem,
+.dark .custom-menubar .p-menuitem-link,
+.dark .custom-menubar .p-menuitem-text,
+.dark .custom-menubar .p-menuitem-icon {
+  background-color:#353434;
+}
+
+.dark .p-dialog {
+  background-color: #2d3748 !important;
+}
+
+.dark .p-dialog-header span,
+.dark .p-dialog-content,
+.dark .p-dialog-content h3,
+.dark .p-dialog-header-actions .p-button{
+  color: #f7fafc !important;
+}
+
+.dark .p-dialog-header-actions .p-button:hover {
+  color: #4c1d95 !important;
+}
+
+.dark .p-datatable-table-container span{
+  color: #2d3748 !important;
+}
+
+.dark td .p-badge {
+  background-color: #4c1d95 !important;
+  color: #f7fafc !important;
 }
