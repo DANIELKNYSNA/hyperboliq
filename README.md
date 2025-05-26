@@ -68,7 +68,7 @@ Ensure you have the following installed:
 
 1. **Clone the repository**
    ```bash
-   git clone git@github.com:DANIELKNYSNA/hyperbolique.git
+   git clone git@github.com:DANIELKNYSNA/hyperboliq.git
    cd wizard-world-app
    ```
 
