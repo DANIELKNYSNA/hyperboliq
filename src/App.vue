@@ -6,6 +6,7 @@ import AppFooter from '@/components/common/AppFooter.vue';
 import { useUiStore } from '@/stores/uiStore'
 import ApiClient from '@/Api/ApiClient';
 import { ApiClientsImpl } from '@/Api/ApiClients';
+import { API_CLIENTS_KEY } from '@/composables/useApi';
 import PWAStatus from './components/PWAStatus.vue';
 
 const uiStore = useUiStore()
@@ -14,10 +15,9 @@ const uiStore = useUiStore()
 const apiClient = new ApiClient()
 const apiClients = new ApiClientsImpl()
 
-// Provide API clients to all child components
+// Here we are Providing API clients to all child components where they can be injected
 provide('apiClient', apiClient)
-provide('apiClients', apiClients)
-
+provide(API_CLIENTS_KEY, apiClients)
 </script>
 
 <template>

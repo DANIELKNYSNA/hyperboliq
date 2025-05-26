@@ -2,12 +2,9 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { library } from '@fortawesome/fontawesome-svg-core'
 import { faBuilding, faBolt, faFlask, faArrowRight } from '@fortawesome/free-solid-svg-icons'
 import { useUiStore } from '@/stores/uiStore'
 import { useUserStore } from '@/stores/userStore'
-
-library.add(faBuilding, faBolt, faFlask, faArrowRight)
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -145,16 +142,11 @@ onMounted(() => {
                     >
                     <!-- Sparkle particles - Multiple layers for maximum sparkle! -->
                     <div v-if="coin.isSpinning" class="sparkles-container">
-                      <!-- Main sparkle ring - 24 sparkles -->
                       <div v-for="i in 24" :key="`main-${i}`" class="sparkle sparkle-main" :style="{ '--delay': i * 0.05 + 's', '--angle': i * 15 + 'deg' }"></div>
-                      <!-- Inner sparkle ring - 16 sparkles -->
                       <div v-for="i in 16" :key="`inner-${i}`" class="sparkle sparkle-inner" :style="{ '--delay': i * 0.07 + 's', '--angle': i * 22.5 + 'deg' }"></div>
-                      <!-- Outer sparkle ring - 32 sparkles -->
                       <div v-for="i in 32" :key="`outer-${i}`" class="sparkle sparkle-outer" :style="{ '--delay': i * 0.03 + 's', '--angle': i * 11.25 + 'deg' }"></div>
-                      <!-- Micro sparkles - 20 tiny ones -->
                       <div v-for="i in 20" :key="`micro-${i}`" class="sparkle sparkle-micro" :style="{ '--delay': i * 0.08 + 's', '--angle': i * 18 + 'deg' }"></div>
                     </div>
-                    <!-- Magic glow ring -->
                     <div v-if="coin.isSpinning" class="magic-ring"></div>
                   </div>
                 </div>

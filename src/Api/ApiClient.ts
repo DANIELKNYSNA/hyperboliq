@@ -23,8 +23,6 @@ export interface IApiClient {
   put<T>(url: string, options: PutOptions): Promise<ApiResponse<T>>
   delete<T>(url: string, parameters?: { [key: string]: Primitive }): Promise<ApiResponse<T>>
 }
-
-// Custom error class for API errors
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -47,16 +45,13 @@ export default class ApiClient implements IApiClient {
     'Content-Type': 'application/json;charset=utf-8',
   }
   protected serviceName: string = ''
-
   constructor() {
     this.baseURL = 'https://wizard-world-api.herokuapp.com/'
   }
 
   private createUrl(url: string, parameters?: { [key: string]: Primitive | Primitive[] }): string {
     const fullUrl = `${this.baseURL}${this.serviceName}${url}`
-
     if (!parameters) return fullUrl
-
     // Build query string
     const searchParams = new URLSearchParams()
     Object.entries(parameters).forEach(([key, value]) => {
@@ -68,22 +63,18 @@ export default class ApiClient implements IApiClient {
         }
       }
     })
-
     const queryString = searchParams.toString()
     return queryString ? `${fullUrl}?${queryString}` : fullUrl
   }
 
   private async handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
     let data: T
-
     // Check if response has content
     const contentType = response.headers.get('content-type')
     const hasJsonContent = contentType?.includes('application/json')
     const hasTextContent = contentType?.includes('text/')
-
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}: ${response.statusText}`
-
       try {
         if (hasJsonContent) {
           const errorData = await response.json()
@@ -94,10 +85,8 @@ export default class ApiClient implements IApiClient {
       } catch {
         // If parsing error response fails, use default message
       }
-
       throw new ApiError(errorMessage, response.status, response.statusText, response)
     }
-
     // Parse successful response
     try {
       if (hasJsonContent) {
@@ -117,7 +106,6 @@ export default class ApiClient implements IApiClient {
         response,
       )
     }
-
     return {
       data,
       status: response.status,
@@ -127,14 +115,12 @@ export default class ApiClient implements IApiClient {
 
   async get<T>(url: string, parameters?: { [key: string]: Primitive }): Promise<ApiResponse<T>> {
     const finalUrl = this.createUrl(url, parameters)
-
     const response = await fetch(finalUrl, {
       method: 'GET',
       headers: {
         ...this.defaultHeaders,
       },
     })
-
     return this.handleResponse<T>(response)
   }
 
@@ -145,17 +131,14 @@ export default class ApiClient implements IApiClient {
   ): Promise<ApiResponse<T>> {
     const { parameters, serializer = 'json' } = options
     const finalUrl = this.createUrl(url, parameters)
-
     let body: string | FormData
     const headers: Record<string, string> = { ...this.defaultHeaders }
-
     // Prepare body based on serializer
     switch (serializer) {
       case 'json':
         body = JSON.stringify(data)
         headers['Content-Type'] = 'application/json;charset=utf-8'
         break
-
       case 'formData':
         body = new FormData()
         Object.entries(data).forEach(([key, value]) => {
@@ -163,43 +146,35 @@ export default class ApiClient implements IApiClient {
             ;(body as FormData).append(key, String(value))
           }
         })
-        // Remove Content-Type header for FormData (browser sets it automatically)
         delete headers['Content-Type']
         break
-
       case 'raw':
         body = data as unknown as string
         headers['Content-Type'] = 'text/plain'
         break
-
       default:
         body = JSON.stringify(data)
         headers['Content-Type'] = 'application/json;charset=utf-8'
     }
-
     const response = await fetch(finalUrl, {
       method: 'POST',
       headers,
       body,
     })
-
     return this.handleResponse<T>(response)
   }
 
   async put<T>(url: string, options: PutOptions): Promise<ApiResponse<T>> {
     const { parameters, serializer = 'json', data } = options
     const finalUrl = this.createUrl(url, parameters)
-
     let body: string | FormData
     const headers: Record<string, string> = { ...this.defaultHeaders }
-
     // Prepare body based on serializer
     switch (serializer) {
       case 'json':
         body = JSON.stringify(data)
         headers['Content-Type'] = 'application/json;charset=utf-8'
         break
-
       case 'formData':
         body = new FormData()
         Object.entries(data).forEach(([key, value]) => {
@@ -213,7 +188,6 @@ export default class ApiClient implements IApiClient {
         })
         delete headers['Content-Type']
         break
-
       case 'raw':
         body = data as unknown as string
         headers['Content-Type'] = 'text/plain'
@@ -223,26 +197,22 @@ export default class ApiClient implements IApiClient {
         body = JSON.stringify(data)
         headers['Content-Type'] = 'application/json;charset=utf-8'
     }
-
     const response = await fetch(finalUrl, {
       method: 'PUT',
       headers,
       body,
     })
-
     return this.handleResponse<T>(response)
   }
 
   async delete<T>(url: string, parameters?: { [key: string]: Primitive }): Promise<ApiResponse<T>> {
     const finalUrl = this.createUrl(url, parameters)
-
     const response = await fetch(finalUrl, {
       method: 'DELETE',
       headers: {
         ...this.defaultHeaders,
       },
     })
-
     return this.handleResponse<T>(response)
   }
 
@@ -261,29 +231,3 @@ export default class ApiClient implements IApiClient {
     this.defaultHeaders = headers
   }
 }
-
-// Updated QueryClient.ts - Same as before
-import { QueryClient } from '@tanstack/vue-query'
-
-export const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      gcTime: 10 * 60 * 1000, // 10 minutes
-      retry: (failureCount, error) => {
-        // Don't retry on 4xx errors (client errors)
-        if (error instanceof Error && 'status' in error) {
-          const status = (error as ErrorWithStatus).status
-          if (status >= 400 && status < 500) {
-            return false
-          }
-        }
-        return failureCount < 3
-      },
-      refetchOnWindowFocus: false,
-    },
-    mutations: {
-      retry: 1,
-    },
-  },
-})

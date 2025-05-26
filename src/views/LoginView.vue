@@ -2,8 +2,6 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { library } from '@fortawesome/fontawesome-svg-core'
-import { faBuilding, faBolt, faFlask, faArrowRight, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
 import { useUserStore } from '@/stores/userStore'
 import { useUiStore } from '@/stores/uiStore'
 
@@ -15,9 +13,7 @@ import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
 import Divider from 'primevue/divider'
 import Message from 'primevue/message'
-// import ProgressSpinner from 'primevue/progressspinner'
 
-library.add(faBuilding, faBolt, faFlask, faArrowRight, faEye, faEyeSlash)
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -64,7 +60,6 @@ const registerErrors = ref({
   agreeToTerms: ''
 })
 
-// Computed properties
 const isLoginFormValid = computed(() => {
   return loginForm.value.email &&
          loginForm.value.password &&
@@ -82,7 +77,6 @@ const isRegisterFormValid = computed(() => {
          !Object.values(registerErrors.value).some(error => error)
 })
 
-// Methods
 const validateEmail = (email: string) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   return emailRegex.test(email)
@@ -90,13 +84,11 @@ const validateEmail = (email: string) => {
 
 const validateLoginForm = () => {
   loginErrors.value = { email: '', password: '' }
-
   if (!loginForm.value.email) {
     loginErrors.value.email = 'Email is required'
   } else if (!validateEmail(loginForm.value.email)) {
     loginErrors.value.email = 'Please enter a valid email'
   }
-
   if (!loginForm.value.password) {
     loginErrors.value.password = 'Password is required'
   }
@@ -111,33 +103,27 @@ const validateRegisterForm = () => {
     confirmPassword: '',
     agreeToTerms: ''
   }
-
   if (!registerForm.value.firstName) {
     registerErrors.value.firstName = 'First name is required'
   }
-
   if (!registerForm.value.lastName) {
     registerErrors.value.lastName = 'Last name is required'
   }
-
   if (!registerForm.value.email) {
     registerErrors.value.email = 'Email is required'
   } else if (!validateEmail(registerForm.value.email)) {
     registerErrors.value.email = 'Please enter a valid email'
   }
-
   if (!registerForm.value.password) {
     registerErrors.value.password = 'Password is required'
   } else if (registerForm.value.password.length < 8) {
     registerErrors.value.password = 'Password must be at least 8 characters'
   }
-
   if (!registerForm.value.confirmPassword) {
     registerErrors.value.confirmPassword = 'Please confirm your password'
   } else if (registerForm.value.password !== registerForm.value.confirmPassword) {
     registerErrors.value.confirmPassword = 'Passwords do not match'
   }
-
   if (!registerForm.value.agreeToTerms) {
     registerErrors.value.agreeToTerms = 'You must agree to the terms and conditions'
   }
@@ -145,29 +131,22 @@ const validateRegisterForm = () => {
 
 const handleLogin = async () => {
   validateLoginForm()
-
   if (!isLoginFormValid.value) return
-
   isLoading.value = true
   errorMessage.value = ''
-
   try {
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1500))
-
     // Replace with actual login logic
     await userStore.login({
       email: loginForm.value.email,
       password: loginForm.value.password,
       rememberMe: loginForm.value.rememberMe
     })
-
     successMessage.value = 'Login successful! Redirecting...'
-
     setTimeout(() => {
       router.push('/')
     }, 1000)
-
   } catch (error) {
     errorMessage.value = 'Invalid email or password. Please try again.'
     console.error('Login error:', error)
@@ -178,26 +157,18 @@ const handleLogin = async () => {
 
 const handleRegister = async () => {
   validateRegisterForm()
-
   if (!isRegisterFormValid.value) return
-
   isLoading.value = true
   errorMessage.value = ''
-
   try {
-    // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 2000))
-
-    // Replace with actual registration logic
     await userStore.register({
       firstName: registerForm.value.firstName,
       lastName: registerForm.value.lastName,
       email: registerForm.value.email,
       password: registerForm.value.password
     })
-
     successMessage.value = 'Account created successfully! Please check your email to verify your account.'
-
     setTimeout(() => {
       toggleMode()
     }, 2000)
@@ -214,8 +185,6 @@ const toggleMode = () => {
   isLogin.value = !isLogin.value
   errorMessage.value = ''
   successMessage.value = ''
-
-  // Reset forms
   loginForm.value = { email: '', password: '', rememberMe: false }
   registerForm.value = {
     firstName: '',
@@ -225,8 +194,6 @@ const toggleMode = () => {
     confirmPassword: '',
     agreeToTerms: false
   }
-
-  // Reset errors
   loginErrors.value = { email: '', password: '' }
   registerErrors.value = {
     firstName: '',
@@ -239,7 +206,6 @@ const toggleMode = () => {
 }
 
 onMounted(() => {
-  // Watch for dark mode changes
   watch(isDarkMode, (newValue) => {
     localDarkMode.value = newValue
   })

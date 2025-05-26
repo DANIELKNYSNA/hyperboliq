@@ -1,6 +1,5 @@
 import './assets/main.css'
 import '@fortawesome/fontawesome-free/css/all.min.css'
-
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import PrimeVue from 'primevue/config'
@@ -9,9 +8,9 @@ import { VueQueryPlugin } from '@tanstack/vue-query'
 import { definePreset } from '@primeuix/themes'
 import '@fortawesome/fontawesome-free/css/all.min.css'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
-
 import App from './App.vue'
 import router from './router'
+import { queryClient } from '@/Api/QueryClient'
 
 const wizardingPreset = definePreset(Aura, {
   semantic: {
@@ -44,6 +43,9 @@ app.use(PrimeVue, {
     },
   },
 })
-app.use(VueQueryPlugin)
+
+app.use(VueQueryPlugin, {
+  queryClient
+})
 
 app.mount('#app')

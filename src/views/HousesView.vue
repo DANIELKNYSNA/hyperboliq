@@ -1,61 +1,53 @@
 <script setup lang="ts">
-import { ref, onMounted, inject, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import Badge from 'primevue/badge'
 import Chip from 'primevue/chip'
 import Dialog from 'primevue/dialog'
 import type { HouseInterface } from '@/interfaces/house'
-import type { ApiClientsImpl } from '@/Api/ApiClients'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { library } from '@fortawesome/fontawesome-svg-core'
-import { faExclamationTriangle, faFeather, faFire, faMagic, faSeedling, faSpinner, faTint, faStar, faPalette, faPaw, faCrown, faInfoCircle, faUsers, faHeart, faUserTie } from '@fortawesome/free-solid-svg-icons'
+import { faExclamationTriangle, faFeather, faFire, faMagic, faSeedling, faSpinner, faTint, faPalette, faPaw, faCrown, faInfoCircle, faUsers, faHeart, faUserTie } from '@fortawesome/free-solid-svg-icons'
+import { useHouses } from '@/composables/useHouses'
 import { useHouseStore } from '@/stores/houseStore'
 import { useUserStore } from '@/stores/userStore'
 
-library.add(faFire, faSeedling, faFeather, faTint, faSpinner, faMagic, faExclamationTriangle, faStar, faPalette, faPaw, faCrown, faInfoCircle, faUsers, faHeart, faUserTie)
+const { houses: housesData, isLoading, isError, error, refetch } = useHouses()
 
-const apiClients = inject<ApiClientsImpl>('apiClients')
-const loading = ref(false)
-const fetchError = ref<string | null>(null)
 const showDetailsDialog = ref(false)
 const selectedHouse = ref<HouseInterface | null>(null)
 const houseStore = useHouseStore()
-
 const userStore = useUserStore()
+
 const isAdmin = computed(() => userStore.isAdmin)
-
-const houses = computed(() => houseStore.houses)
-
 const myHouse = computed(() => houseStore.myHouse)
 
-const fetchHouses = async () => {
-  if (!apiClients) {
-    fetchError.value = 'API client not available'
-    return []
+const houses = computed(() => {
+  if (!housesData.value) return []
+  return housesData.value.map(house => ({
+    ...house,
+    housePoints: house.housePoints || 100
+  }))
+})
+
+watch(housesData, (newHouses) => {
+  if (newHouses) {
+    houseStore.houses = newHouses.map(house => ({
+      ...house,
+      housePoints: house.housePoints || 100
+    }))
   }
-  try {
-    loading.value = true
-    fetchError.value = null
-    const response = await apiClients.serviceHousesClient.getHouses()
-    if (response && response.data) {
-      houseStore.houses = response.data
-      houseStore.houses.forEach((house: HouseInterface) => {
-        house.housePoints = house.housePoints || 100
-      })
-    }
-  } catch (err) {
-    fetchError.value = 'Failed to fetch houses'
-    console.error('Error fetching houses:', err)
-  } finally {
-    loading.value = false
-  }
-}
+}, { immediate: true })
 
 function updateHousePoints(houseId: string, points: number) {
   const house = houses.value?.find((h) => h.id === houseId)
   if (house) {
     house.housePoints = points
+    // Update in store as well
+    const storeHouse = houseStore.houses?.find((h) => h.id === houseId)
+    if (storeHouse) {
+      storeHouse.housePoints = points
+    }
   }
 }
 
@@ -69,7 +61,7 @@ function awardPoints(house: HouseInterface, points: number) {
 }
 
 function removePoints(house: HouseInterface, points: number) {
-  updateHousePoints(house.id,(house.housePoints ?? 0) - points)
+  updateHousePoints(house.id, (house.housePoints ?? 0) - points)
 }
 
 function getHouseIcon(houseName: string) {
@@ -103,18 +95,16 @@ function getHouseNameColor(houseName: string) {
 }
 
 function setMyHouse(house: HouseInterface) {
-  if(houseStore.myHouse) {
+  if (houseStore.myHouse) {
     removePoints(houseStore.myHouse, 10)
   }
   houseStore.myHouse = house
   awardPoints(house, 10)
 }
 
-onMounted(() => {
-  if (!houses.value) {
-    fetchHouses()
-  }
-})
+function handleRetry() {
+  refetch()
+}
 </script>
 
 <template>
@@ -129,20 +119,31 @@ onMounted(() => {
         Choose your house and discover the magic within
       </p>
     </div>
+
     <!-- Loading State -->
-    <div v-if="loading" class="text-center py-16 px-8">
+    <div v-if="isLoading" class="text-center py-16 px-8">
       <div class="text-5xl text-purple-600 mb-4">
         <FontAwesomeIcon :icon="faSpinner" class="animate-spin" />
       </div>
-      <p class="text-lg">Summoning houses from Hogwarts...</p>
+      <p class="text-lg text-white drop-shadow-md">Summoning houses from Hogwarts...</p>
     </div>
+
     <!-- Error State -->
-    <div v-else-if="fetchError" class="text-center py-16 px-8 text-red-500">
-      <FontAwesomeIcon :icon="faExclamationTriangle" class="text-3xl mb-4" />
-      <p class="text-lg">{{ fetchError }}</p>
+    <div v-else-if="isError" class="text-center py-16 px-8">
+      <div class="bg-red-500/90 backdrop-blur-sm rounded-2xl p-8 text-white max-w-md mx-auto">
+        <FontAwesomeIcon :icon="faExclamationTriangle" class="text-4xl mb-4" />
+        <p class="text-lg mb-4">{{ error?.message || 'Failed to load houses' }}</p>
+        <Button
+          label="Try Again"
+          icon="fas fa-redo"
+          @click="handleRetry"
+          class="!bg-white !text-red-500 font-semibold"
+        />
+      </div>
     </div>
+
     <!-- Houses Grid -->
-    <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+    <div v-else-if="houses && houses.length > 0" class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
       <Card
         v-for="house in houses"
         :key="house.id"
@@ -239,6 +240,15 @@ onMounted(() => {
         </template>
       </Card>
     </div>
+
+    <!-- Empty State -->
+    <div v-else class="text-center py-16 px-8">
+      <div class="bg-white/90 backdrop-blur-sm rounded-2xl p-8 max-w-md mx-auto">
+        <FontAwesomeIcon :icon="faInfoCircle" class="text-4xl text-gray-400 mb-4" />
+        <p class="text-lg text-gray-600">No houses found</p>
+      </div>
+    </div>
+
     <!-- Details Dialog -->
     <Dialog
       v-model:visible="showDetailsDialog"

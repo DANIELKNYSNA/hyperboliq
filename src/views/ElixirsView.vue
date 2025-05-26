@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, inject } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import Autocomplete from 'primevue/autocomplete'
@@ -13,18 +13,16 @@ import Message from 'primevue/message'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faFlask, faMagic, faIndustry, faUser, faLeaf, faFilter, faExclamationTriangle, faClock, faHeart, faHeartBroken } from '@fortawesome/free-solid-svg-icons'
 import { library } from '@fortawesome/fontawesome-svg-core'
-import type { ApiClientsImpl } from '@/Api/ApiClients'
 import type { ElixirInterface } from '@/interfaces/elixirs'
+import { useElixirs } from '@/composables/useElixirs'
 import { useElixirStore } from '@/stores/elixirStore'
 
 library.add(faFlask, faMagic, faIndustry, faUser, faLeaf, faFilter, faExclamationTriangle, faClock, faHeart, faHeartBroken)
 
-const apiClients = inject<ApiClientsImpl>('apiClients')
-const loading = ref(false)
+const { elixirs: elixirsData, isLoading, isError, error, refetch } = useElixirs()
+
 const loadingMore = ref(false)
-const fetchError = ref<string | null>(null)
 const elixirStore = useElixirStore()
-const elixirs = computed(() => elixirStore.elixirs || [])
 const likedElixirs = computed(() => elixirStore.likedElixirs || [])
 const selectedElixir = computed(() => elixirStore.selectedElixir)
 const showDetailsDialog = ref(false)
@@ -46,6 +44,17 @@ const difficultyOptions = [
   { label: 'Advanced', value: 'Advanced' },
   { label: 'Expert', value: 'Expert' },
 ]
+
+const elixirs = computed(() => {
+  if (!elixirsData.value) return []
+  return elixirsData.value as ElixirInterface[]
+})
+
+watch(elixirsData, (newElixirs) => {
+  if (newElixirs) {
+    elixirStore.elixirs = newElixirs as ElixirInterface[]
+  }
+}, { immediate: true })
 
 const filteredElixirs = computed(() => {
   if (!elixirs.value) return []
@@ -72,13 +81,11 @@ const isElixirLiked = (elixir: ElixirInterface) => {
 
 const toggleLike = (elixir: ElixirInterface) => {
   if (isElixirLiked(elixir)) {
-    // Remove from liked elixirs
     const index = likedElixirs.value.findIndex(likedElixir => likedElixir.id === elixir.id)
     if (index > -1) {
       elixirStore.likedElixirs.splice(index, 1)
     }
   } else {
-    // Add to liked elixirs
     if (!elixirStore.likedElixirs) {
       elixirStore.likedElixirs = []
     }
@@ -95,31 +102,6 @@ const getDifficultySeverity = (difficulty: string) => {
     'Expert': 'danger'
   }
   return severityMap[difficulty] || 'secondary'
-}
-
-const fetchElixirs = async () => {
-  loading.value = true
-  fetchError.value = null
-  currentPage.value = 1
-
-  if (!apiClients) {
-    fetchError.value = 'API client not available'
-    loading.value = false
-    return
-  }
-  try {
-    const response = await apiClients.serviceElixirsClient.getElixirs()
-    if (response && response.data) {
-      elixirStore.elixirs = response.data as ElixirInterface[]
-    } else {
-      fetchError.value = 'No elixirs found'
-    }
-  } catch (error) {
-    fetchError.value = 'Failed to fetch elixirs'
-    console.error('Error fetching elixirs:', error)
-  } finally {
-    loading.value = false
-  }
 }
 
 const loadMoreElixirs = async () => {
@@ -162,17 +144,18 @@ const watchFilters = () => {
   resetPaginationOnFilterChange()
 }
 
-onMounted(() => {
-  document.title = 'Magical Elixirs'
-  if (!elixirs.value || elixirs.value.length === 0) {
-    fetchElixirs()
-  }
-})
+const handleRetry = () => {
+  refetch()
+}
+
+// Set document title
+document.title = 'Magical Elixirs'
 </script>
 
 <template>
   <div class="elixirs-page">
     <div class="fixed top-0 left-0 w-full h-full bg-cover bg-center bg-no-repeat -z-30 elixir-background"></div>
+
     <!-- Header Card -->
     <Card class="mb-6">
       <template #title>
@@ -235,8 +218,8 @@ onMounted(() => {
             <div class="field">
               <Button
                 label="Refresh"
-                @click="fetchElixirs"
-                :loading="loading"
+                @click="handleRetry"
+                :loading="isLoading"
                 class="w-full"
               />
             </div>
@@ -244,12 +227,25 @@ onMounted(() => {
         </div>
       </template>
     </Card>
+
     <!-- Error Message -->
-    <Message v-if="fetchError" severity="error" class="mb-4">
-      {{ fetchError }}
-    </Message>
+    <div v-if="isError" class="mb-4">
+      <Message severity="error" class="mb-4">
+        <div class="flex items-center justify-between">
+          <span>{{ error?.message || 'Failed to load elixirs' }}</span>
+          <Button
+            label="Try Again"
+            icon="fas fa-redo"
+            size="small"
+            @click="handleRetry"
+            class="ml-4"
+          />
+        </div>
+      </Message>
+    </div>
+
     <!-- Results Summary -->
-    <div v-if="!loading && elixirs.length > 0" class="mb-4">
+    <div v-if="!isLoading && elixirs.length > 0" class="mb-4">
       <p class="show_text">
         Showing {{ paginatedElixirs.length }} of {{ filteredElixirs.length }} elixirs
         <span v-if="filteredElixirs.length !== elixirs.length" class="font-medium text-purple-600">
@@ -260,8 +256,9 @@ onMounted(() => {
         </span>
       </p>
     </div>
+
     <!-- Loading State -->
-    <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div v-if="isLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       <Card v-for="n in 6" :key="n" class="elixir-card">
         <template #content>
           <div class="space-y-4">
@@ -276,8 +273,9 @@ onMounted(() => {
         </template>
       </Card>
     </div>
+
     <!-- Elixirs Grid -->
-    <div v-else-if="!loading && paginatedElixirs.length > 0" class="elixirs-grid">
+    <div v-else-if="!isLoading && paginatedElixirs.length > 0" class="elixirs-grid">
       <Card
         v-for="elixir in paginatedElixirs"
         :key="elixir.id"
@@ -359,7 +357,7 @@ onMounted(() => {
     </div>
 
     <!-- Load More Button -->
-    <div v-if="!loading && paginatedElixirs.length > 0 && hasMoreToLoad" class="text-center mt-8">
+    <div v-if="!isLoading && paginatedElixirs.length > 0 && hasMoreToLoad" class="text-center mt-8">
       <Button
         label="Load More Elixirs"
         icon="pi pi-chevron-down"
@@ -393,7 +391,7 @@ onMounted(() => {
     </div>
 
     <!-- No Results -->
-    <Card v-else-if="!loading && paginatedElixirs.length === 0 && elixirs.length > 0">
+    <Card v-else-if="!isLoading && paginatedElixirs.length === 0 && elixirs.length > 0">
       <template #content>
         <div class="text-center py-8">
           <FontAwesomeIcon :icon="faFlask" class="text-6xl text-gray-300 mb-4" />
@@ -411,7 +409,7 @@ onMounted(() => {
     </Card>
 
     <!-- Empty State -->
-    <Card v-else-if="!loading && elixirs.length === 0">
+    <Card v-else-if="!isLoading && elixirs.length === 0 && !isError">
       <template #content>
         <div class="text-center py-8">
           <FontAwesomeIcon :icon="faFlask" class="text-6xl text-gray-300 mb-4" />
@@ -420,7 +418,7 @@ onMounted(() => {
           <Button
             label="Refresh"
             icon="pi pi-refresh"
-            @click="fetchElixirs"
+            @click="handleRetry"
           />
         </div>
       </template>

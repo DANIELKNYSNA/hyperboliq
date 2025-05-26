@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { onMounted, computed } from 'vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { library } from '@fortawesome/fontawesome-svg-core'
-import { faBuilding, faBolt, faFlask, faArrowRight, faHeart, faMagic, faShield, faHome, faCrown, faWandMagicSparkles, faLeaf, faUser, faClock, faIndustry } from '@fortawesome/free-solid-svg-icons'
+import { faFlask, faHeart, faMagic, faShield, faHome, faCrown, faWandMagicSparkles, faLeaf, faClock, faIndustry } from '@fortawesome/free-solid-svg-icons'
 import Card from 'primevue/card'
 import Badge from 'primevue/badge'
 import Button from 'primevue/button'
@@ -13,19 +12,15 @@ import { useHouseStore } from '@/stores/houseStore'
 import { useRouter } from 'vue-router'
 const router = useRouter()
 
-library.add(faBuilding, faBolt, faFlask, faArrowRight, faHeart, faMagic, faShield, faHome, faCrown, faWandMagicSparkles, faLeaf, faUser, faClock, faIndustry)
-
 const spellStore = useSpellStore()
 const elixirStore = useElixirStore()
 const houseStore = useHouseStore()
 
-// Computed properties for favorites
 const myHouse = computed(() => houseStore.myHouse)
 const likedSpells = computed(() => spellStore.likedSpells || [])
 const likedElixirs = computed(() => elixirStore.likedElixirs || [])
 const totalFavorites = computed(() => likedSpells.value.length + likedElixirs.value.length + (myHouse.value ? 1 : 0))
 
-// House styling based on house name
 const getHouseColors = (houseName: string) => {
   // We could in the future have the entire site run off the colours of the chosen house - ie a theme
   const houseColors = {
