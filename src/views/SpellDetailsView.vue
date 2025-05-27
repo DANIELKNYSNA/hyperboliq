@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
@@ -24,15 +24,29 @@ const isAdmin = computed(() => userStore.isAdmin)
 const loading = ref(true)
 const showUpdateDialog = ref(false)
 
+const updatePageName = () => {
+  if (selectedSpell.value?.name) {
+    const spellName = `Spell: ${selectedSpell.value.name}`
+    uiStore.updatePageDisplayName('SpellsDetailsView', spellName)
+    document.title = `Spell Details: ${selectedSpell.value.name}`
+    if (uiStore.tracker) {
+      uiStore.tracker.lastViewedSpell = selectedSpell.value.name || ''
+    }
+    console.log(`Updated page name to: ${spellName}`)
+  }
+}
+
+watch(selectedSpell, (newSpell) => {
+  if (newSpell?.name) {
+    updatePageName()
+  }
+}, { immediate: true })
+
 onMounted(() => {
   setTimeout(() => {
     loading.value = false
   }, 1000)
-
-  document.title = `Spell Details: ${selectedSpell.value?.name || 'Unknown'}`
-  if (uiStore.tracker) {
-    uiStore.tracker.lastViewedSpell = selectedSpell.value?.id || ''
-  }
+  updatePageName()
 })
 
 function goBack() {

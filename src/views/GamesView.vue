@@ -1,15 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, computed } from 'vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { library } from '@fortawesome/fontawesome-svg-core'
-import { faBuilding, faBolt, faFlask, faArrowRight, faLightbulb, faGamepad, faTrophy, faRefresh, faMagic, faWandMagicSparkles } from '@fortawesome/free-solid-svg-icons'
+import { faLightbulb, faGamepad, faTrophy, faMagic, faWandMagicSparkles } from '@fortawesome/free-solid-svg-icons'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import Badge from 'primevue/badge'
 import Dialog from 'primevue/dialog'
 import { useUserStore } from '@/stores/userStore'
-
-library.add(faBuilding, faBolt, faFlask, faArrowRight, faLightbulb, faGamepad, faTrophy, faRefresh, faMagic, faWandMagicSparkles)
 
 const userStore = useUserStore()
 
@@ -358,10 +355,6 @@ const getAnswerClass = (index: number) => {
   if (isSelected && !isCorrect) return 'wrong-answer'
   return 'answer-option disabled'
 }
-
-onMounted(() => {
-  document.title = 'Harry Potter Trivia & Facts'
-})
 </script>
 
 <template>
@@ -466,7 +459,7 @@ onMounted(() => {
             </div>
           </template>
         </Card>
-        <Card class="facts-card glass-effect">
+        <Card class="facts-card glass-effect" id="facts-card">
           <template #title>
             <div class="flex items-center gap-3">
               <FontAwesomeIcon :icon="faLightbulb" class="text-3xl text-yellow-600" />
@@ -709,5 +702,9 @@ onMounted(() => {
 .dark .p-button-outlined.p-button-secondary{
   border-color: #4a5568;
   color: #cbd5e0;
+}
+
+.dark #facts-card {
+  background-color: #2d3748 !important;
 }
 </style>

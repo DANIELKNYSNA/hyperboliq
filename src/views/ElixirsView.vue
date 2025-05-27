@@ -2,7 +2,7 @@
 import { ref, reactive, computed, watch } from 'vue'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
-import Autocomplete from 'primevue/autocomplete'
+import Dropdown from 'primevue/dropdown'
 import InputText from 'primevue/inputtext'
 import Badge from 'primevue/badge'
 import Skeleton from 'primevue/skeleton'
@@ -12,12 +12,9 @@ import Chip from 'primevue/chip'
 import Message from 'primevue/message'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faFlask, faMagic, faIndustry, faUser, faLeaf, faFilter, faExclamationTriangle, faClock, faHeart, faHeartBroken } from '@fortawesome/free-solid-svg-icons'
-import { library } from '@fortawesome/fontawesome-svg-core'
 import type { ElixirInterface } from '@/interfaces/elixirs'
 import { useElixirs } from '@/composables/useElixirs'
 import { useElixirStore } from '@/stores/elixirStore'
-
-library.add(faFlask, faMagic, faIndustry, faUser, faLeaf, faFilter, faExclamationTriangle, faClock, faHeart, faHeartBroken)
 
 const { elixirs: elixirsData, isLoading, isError, error, refetch } = useElixirs()
 
@@ -147,9 +144,6 @@ const watchFilters = () => {
 const handleRetry = () => {
   refetch()
 }
-
-// Set document title
-document.title = 'Magical Elixirs'
 </script>
 
 <template>
@@ -204,7 +198,7 @@ document.title = 'Magical Elixirs'
               <label for="difficultyFilter" class="block text-sm font-medium mb-2">
                 Filter by Difficulty
               </label>
-              <Autocomplete
+              <Dropdown
                 id="difficultyFilter"
                 v-model="globalFilters.difficultyFilter"
                 :options="difficultyOptions"
@@ -762,6 +756,10 @@ document.title = 'Magical Elixirs'
 .dark .p-button-outlined.p-button-secondary {
   color: rgb(223, 223, 223) !important;
   background-color: rgb(130, 130, 130);
+}
+
+.dark #difficultyFilter {
+  background-color: rgb(44, 43, 43) !important;
 }
 
 .load_more {

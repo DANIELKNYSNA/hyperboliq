@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
+import { computed } from 'vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faFlask, faHeart, faMagic, faShield, faHome, faCrown, faWandMagicSparkles, faLeaf, faClock, faIndustry } from '@fortawesome/free-solid-svg-icons'
+import { faFlask, faHeart, faMagic, faShield, faHome, faCrown, faWandMagicSparkles, faLeaf, faClock, faIndustry, faChartLine, faEye, faFire, faTrophy, faHistory } from '@fortawesome/free-solid-svg-icons'
 import Card from 'primevue/card'
 import Badge from 'primevue/badge'
 import Button from 'primevue/button'
@@ -9,17 +9,35 @@ import Chip from 'primevue/chip'
 import { useSpellStore } from '@/stores/spellStore'
 import { useElixirStore } from '@/stores/elixirStore'
 import { useHouseStore } from '@/stores/houseStore'
+import { useUiStore } from '@/stores/uiStore'
 import { useRouter } from 'vue-router'
+
 const router = useRouter()
 
 const spellStore = useSpellStore()
 const elixirStore = useElixirStore()
 const houseStore = useHouseStore()
+const uiStore = useUiStore()
 
 const myHouse = computed(() => houseStore.myHouse)
 const likedSpells = computed(() => spellStore.likedSpells || [])
 const likedElixirs = computed(() => elixirStore.likedElixirs || [])
 const totalFavorites = computed(() => likedSpells.value.length + likedElixirs.value.length + (myHouse.value ? 1 : 0))
+
+const totalVisits = computed(() => uiStore.tracker.totalVisitCount)
+const mostVisitedPageName = computed(() => uiStore.getMostVisitedPageDisplayName)
+const recentVisits = computed(() => uiStore.getVisitHistoryWithNames.slice(0, 5))
+const lastViewedSpell = computed(() => uiStore.tracker.lastViewedSpell)
+const pageVisits = computed(() => uiStore.tracker.pageVisits)
+
+const formatTime = (timestamp: string) => {
+  return new Date(timestamp).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
 
 const getHouseColors = (houseName: string) => {
   // We could in the future have the entire site run off the colours of the chosen house - ie a theme
@@ -92,10 +110,6 @@ const removeElixirFromFavorites = (elixirId: string) => {
     elixirStore.likedElixirs.splice(index, 1)
   }
 }
-
-onMounted(() => {
-  document.title = 'My Favourites - Wizarding World'
-})
 </script>
 
 <template>
@@ -106,13 +120,124 @@ onMounted(() => {
     <div class="container mx-auto px-4 py-8">
       <!-- Header -->
       <div class="text-center mb-8">
-        <h1 class="text-4xl font-bold text-white mb-2 text-shadow">
+        <h1 class="text-4xl font-bold mb-2 text-shadow">
           <FontAwesomeIcon :icon="faHeart" class="mr-3 text-red-400" />
           My Favourites
         </h1>
         <p class="text-xl text-gray-200 text-shadow">Your personal collection from the wizarding world</p>
         <Badge v-if="totalFavorites > 0" :value="`${totalFavorites} items`" severity="info" class="mt-2" size="large" />
       </div>
+
+      <!-- Analytics Card -->
+      <Card class="analytics-card glass-effect mb-8">
+        <template #header>
+          <div class="card-header analytics-header">
+            <FontAwesomeIcon :icon="faChartLine" />
+            <h2>Your Wizarding Journey Analytics</h2>
+          </div>
+        </template>
+        <template #content>
+          <div class="analytics-content">
+            <!-- Top Stats Row -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div class="stat-card">
+                <div class="stat-icon">
+                  <FontAwesomeIcon :icon="faEye" class="text-2xl text-blue-500" />
+                </div>
+                <div class="stat-info">
+                  <div class="stat-number">{{ totalVisits }}</div>
+                  <div class="stat-label">Total Visits</div>
+                </div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-icon">
+                  <FontAwesomeIcon :icon="faTrophy" class="text-2xl text-yellow-500" />
+                </div>
+                <div class="stat-info">
+                  <div class="stat-number">{{ mostVisitedPageName || 'None' }}</div>
+                  <div class="stat-label">Most Visited</div>
+                </div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-icon">
+                  <FontAwesomeIcon :icon="faMagic" class="text-2xl text-purple-500" />
+                </div>
+                <div class="stat-info">
+                  <div class="stat-number">{{ lastViewedSpell || 'None' }}</div>
+                  <div class="stat-label">Last Spell Viewed</div>
+                </div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-icon">
+                  <FontAwesomeIcon :icon="faHeart" class="text-2xl text-red-500" />
+                </div>
+                <div class="stat-info">
+                  <div class="stat-number">{{ totalFavorites }}</div>
+                  <div class="stat-label">Total Favourites</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Detailed Analytics -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <!-- Page Visit Breakdown -->
+              <div class="analytics-section">
+                <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <FontAwesomeIcon :icon="faFire" class="text-orange-500" />
+                  Page Visit Breakdown
+                </h3>
+                <div class="space-y-3">
+                  <div
+                    v-for="(count, pageName) in pageVisits"
+                    :key="pageName"
+                    class="page-stat-item"
+                  >
+                    <div class="flex justify-between items-center">
+                      <span class="font-medium">{{ uiStore.getPageDisplayName(pageName as keyof typeof pageVisits) }}</span>
+                      <Badge :value="count" severity="info" />
+                    </div>
+                    <div class="progress-bar">
+                      <div
+                        class="progress-fill"
+                        :style="{ width: totalVisits > 0 ? `${(count / totalVisits) * 100}%` : '0%' }"
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Recent Activity -->
+              <div class="analytics-section">
+                <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <FontAwesomeIcon :icon="faHistory" class="text-green-500" />
+                  Recent Activity
+                </h3>
+                <div v-if="recentVisits.length === 0" class="text-center py-4 text-gray-500">
+                  No recent activity
+                </div>
+                <div v-else class="space-y-3">
+                  <div
+                    v-for="(visit, index) in recentVisits"
+                    :key="index"
+                    class="activity-item"
+                  >
+                    <div class="flex items-center gap-3">
+                      <div class="activity-dot"></div>
+                      <div class="flex-1">
+                        <div class="font-medium">{{ visit.displayName }}</div>
+                        <div class="text-sm text-gray-500">{{ formatTime(visit.timestamp) }}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </Card>
 
       <!-- My House Section -->
       <div v-if="myHouse" class="mb-8">
@@ -357,6 +482,121 @@ onMounted(() => {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
 }
 
+/* Analytics Card Styles */
+.analytics-card {
+  border-left: 4px solid #3b82f6;
+}
+
+.analytics-header {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px 12px 0 0;
+  margin: -1px -1px 0 -1px;
+}
+
+.analytics-header h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0;
+  color: white;
+}
+
+.analytics-content {
+  padding: 1.5rem;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.1);
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.1);
+}
+
+.stat-icon {
+  width: 3rem;
+  height: 3rem;
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-info {
+  flex: 1;
+}
+
+.stat-number {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.analytics-section {
+  background: rgba(255, 255, 255, 0.6);
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.1);
+}
+
+.page-stat-item {
+  background: rgba(255, 255, 255, 0.8);
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(229, 231, 235, 0.5);
+}
+
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: 2px;
+  margin-top: 0.5rem;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+  border-radius: 2px;
+  transition: width 0.6s ease;
+}
+
+.activity-item {
+  background: rgba(255, 255, 255, 0.8);
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(229, 231, 235, 0.5);
+}
+
+.activity-dot {
+  width: 8px;
+  height: 8px;
+  background: #10b981;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 .house-card {
   overflow: hidden;
 }
@@ -444,26 +684,35 @@ onMounted(() => {
   animation: pulse 2s infinite;
 }
 
-/* Responsive design */
-@media (max-width: 768px) {
-  .container {
-    padding: 1rem;
-  }
-
-  .house-header {
-    padding: 1.5rem;
-  }
-
-  .house-details, .house-traits {
-    margin-bottom: 1rem;
-  }
-
-  .grid.grid-cols-1.md\\:grid-cols-2 {
-    grid-template-columns: 1fr;
-  }
+/* Dark Mode Support */
+.dark .stat-card,
+.dark .analytics-section,
+.dark .page-stat-item,
+.dark .activity-item {
+  background: rgba(55, 65, 81, 0.8);
+  border-color: rgba(75, 85, 99, 0.4);
 }
 
-/* Dark mode support */
+.dark .analytics-header {
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+}
+
+.dark .stat-number {
+  color: #e5e7eb;
+}
+
+.dark .stat-label {
+  color: #9ca3af;
+}
+
+.dark .stat-icon {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+.dark .progress-bar {
+  background: rgba(75, 85, 99, 0.3);
+}
+
 .dark .spell-item,
 .dark .elixir-item {
   background: rgba(30, 30, 30, 0.8);
@@ -481,7 +730,59 @@ onMounted(() => {
   border-color: rgba(255, 255, 255, 0.1);
 }
 
-.dark .dark .p-card .p-card-content span {
-  color: rgba(60, 59, 59, 0.8);
+/* Responsive design */
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem;
+  }
+
+  .house-header {
+    padding: 1.5rem;
+  }
+
+  .house-details, .house-traits {
+    margin-bottom: 1rem;
+  }
+
+  .grid.grid-cols-1.md\\:grid-cols-4 {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .grid.grid-cols-1.md\\:grid-cols-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics-content {
+    padding: 1rem;
+  }
+
+  .stat-card {
+    padding: 0.75rem;
+    gap: 0.75rem;
+  }
+
+  .stat-number {
+    font-size: 1.25rem;
+  }
+
+  .analytics-section {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .stat-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .stat-number {
+    font-size: 1rem;
+  }
+
+  .stat-label {
+    font-size: 0.75rem;
+  }
 }
 </style>

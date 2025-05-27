@@ -6,10 +6,11 @@ import { faBuilding, faBolt, faFlask, faArrowRight } from '@fortawesome/free-sol
 import { useUiStore } from '@/stores/uiStore'
 import { useUserStore } from '@/stores/userStore'
 
+const uiStore = useUiStore()
 const router = useRouter()
 const userStore = useUserStore()
 const userAuthed = computed(() => userStore.isAuthenticated)
-const isDarkMode = computed(() => useUiStore().isDarkMode)
+const isDarkMode = computed(() => uiStore.isDarkMode)
 // We need a local mode to avoid flickering on the background image when the change is made
 const localDarkMode = ref(isDarkMode.value)
 const backgroundVisible = ref(false)

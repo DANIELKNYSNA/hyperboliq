@@ -14,7 +14,6 @@ import type { SpellInterface } from '@/interfaces/spell'
 import { useSpells } from '@/composables/useSpells'
 import { useSpellStore } from '@/stores/spellStore'
 import { faSearch, faMagic, faHeart, faHeartBroken } from '@fortawesome/free-solid-svg-icons'
-
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useUserStore } from '@/stores/userStore'
 import UpdateSpellDialog from '@/components/UpdateSpellDialog.vue'

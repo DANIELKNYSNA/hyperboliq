@@ -4,8 +4,6 @@ import { useRouter } from 'vue-router'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useUserStore } from '@/stores/userStore'
 import { useUiStore } from '@/stores/uiStore'
-
-// PrimeVue components
 import Card from 'primevue/card'
 import InputText from 'primevue/inputtext'
 import Password from 'primevue/password'
@@ -13,7 +11,6 @@ import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
 import Divider from 'primevue/divider'
 import Message from 'primevue/message'
-
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -137,7 +134,7 @@ const handleLogin = async () => {
   try {
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1500))
-    // Replace with actual login logic
+    // Replace with actual login logic when we have a BE...
     await userStore.login({
       email: loginForm.value.email,
       password: loginForm.value.password,

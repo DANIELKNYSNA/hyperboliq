@@ -46,8 +46,29 @@ describe('useUiStore', () => {
     it('should initialize with correct default values', () => {
       expect(store.isDarkMode).toBe(false)
       expect(store.tracker).toEqual({
-        visitCount: 0,
-        lastViewedSpell: ''
+        totalVisitCount: 0,
+        lastViewedSpell: '',
+        pageVisits: {
+          ElixirView: 0,
+          HousesView: 0,
+          SpellsView: 0,
+          GamesView: 0,
+          HomeView: 0,
+          MyFavouritesView: 0,
+          SpellsDetailsView: 0
+        },
+        pageNames: {
+          ElixirView: 'Magical Elixirs',
+          HousesView: 'Hogwarts Houses',
+          SpellsView: 'Spells & Enchantments',
+          GamesView: 'Wizarding Games',
+          HomeView: 'Home',
+          MyFavouritesView: 'My Favourites',
+          SpellsDetailsView: 'Spell Details'
+        },
+        lastVisitedPage: '',
+        lastVisitedPageDisplayName: '',
+        visitHistory: []
       })
     })
 
@@ -62,10 +83,23 @@ describe('useUiStore', () => {
 
       // Computed
       expect(store).toHaveProperty('themeClass')
+      expect(store).toHaveProperty('getMostVisitedPage')
+      expect(store).toHaveProperty('getMostVisitedPageDisplayName')
+      expect(store).toHaveProperty('getVisitHistoryWithNames')
 
       // Actions
       expect(store).toHaveProperty('toggleDarkMode')
+      expect(store).toHaveProperty('trackPageVisit')
+      expect(store).toHaveProperty('updatePageDisplayName')
+      expect(store).toHaveProperty('getPageVisitCount')
+      expect(store).toHaveProperty('getPageDisplayName')
+
+      // Check function types
       expect(typeof store.toggleDarkMode).toBe('function')
+      expect(typeof store.trackPageVisit).toBe('function')
+      expect(typeof store.updatePageDisplayName).toBe('function')
+      expect(typeof store.getPageVisitCount).toBe('function')
+      expect(typeof store.getPageDisplayName).toBe('function')
     })
   })
 
@@ -95,53 +129,62 @@ describe('useUiStore', () => {
   })
 
   describe('tracker State Management', () => {
-    it('should allow updating visitCount', () => {
-      store.tracker.visitCount = 5
-      expect(store.tracker.visitCount).toBe(5)
+    it('should allow updating totalVisitCount', () => {
+      store.tracker.totalVisitCount = 5
+      expect(store.tracker.totalVisitCount).toBe(5)
     })
 
     it('should allow updating lastViewedSpell', () => {
-      store.tracker.lastViewedSpell = 'Expelliarmus'
-      expect(store.tracker.lastViewedSpell).toBe('Expelliarmus')
+      store.tracker.lastViewedSpell = 'spell-123'
+      expect(store.tracker.lastViewedSpell).toBe('spell-123')
     })
 
-    it('should allow updating both tracker properties', () => {
-      store.tracker = {
-        visitCount: 10,
-        lastViewedSpell: 'Stupefy'
+    it('should allow updating pageVisits', () => {
+      store.tracker.pageVisits.SpellsView = 10
+      expect(store.tracker.pageVisits.SpellsView).toBe(10)
+    })
+
+    it('should allow updating pageNames', () => {
+      store.tracker.pageNames.SpellsView = 'Custom Spells Page'
+      expect(store.tracker.pageNames.SpellsView).toBe('Custom Spells Page')
+    })
+
+    it('should allow updating lastVisitedPage', () => {
+      store.tracker.lastVisitedPage = 'HousesView'
+      expect(store.tracker.lastVisitedPage).toBe('HousesView')
+    })
+
+    it('should allow updating lastVisitedPageDisplayName', () => {
+      store.tracker.lastVisitedPageDisplayName = 'Custom House Page'
+      expect(store.tracker.lastVisitedPageDisplayName).toBe('Custom House Page')
+    })
+
+    it('should allow updating visitHistory', () => {
+      const historyEntry = {
+        page: 'SpellsView',
+        displayName: 'Spells & Enchantments',
+        timestamp: '2023-12-01T10:00:00.000Z'
       }
-
-      expect(store.tracker.visitCount).toBe(10)
-      expect(store.tracker.lastViewedSpell).toBe('Stupefy')
+      store.tracker.visitHistory = [historyEntry]
+      expect(store.tracker.visitHistory).toEqual([historyEntry])
     })
 
-    it('should allow incremental updates to visitCount', () => {
-      expect(store.tracker.visitCount).toBe(0)
+    it('should handle incremental updates to totalVisitCount', () => {
+      expect(store.tracker.totalVisitCount).toBe(0)
 
-      store.tracker.visitCount++
-      expect(store.tracker.visitCount).toBe(1)
+      store.tracker.totalVisitCount++
+      expect(store.tracker.totalVisitCount).toBe(1)
 
-      store.tracker.visitCount += 5
-      expect(store.tracker.visitCount).toBe(6)
-    })
-
-    it('should handle large visit counts', () => {
-      store.tracker.visitCount = 999999
-      expect(store.tracker.visitCount).toBe(999999)
-    })
-
-    it('should handle long spell names', () => {
-      const longSpellName = 'Extremely Long Spell Name That Exceeds Normal Length Limits'
-      store.tracker.lastViewedSpell = longSpellName
-      expect(store.tracker.lastViewedSpell).toBe(longSpellName)
+      store.tracker.totalVisitCount += 5
+      expect(store.tracker.totalVisitCount).toBe(6)
     })
 
     it('should maintain object structure when updating individual properties', () => {
-      store.tracker.visitCount = 5
+      store.tracker.totalVisitCount = 5
       expect(store.tracker.lastViewedSpell).toBe('') // Should remain unchanged
 
-      store.tracker.lastViewedSpell = 'Alohomora'
-      expect(store.tracker.visitCount).toBe(5) // Should remain unchanged
+      store.tracker.lastViewedSpell = 'spell-456'
+      expect(store.tracker.totalVisitCount).toBe(5) // Should remain unchanged
     })
   })
 
@@ -241,15 +284,254 @@ describe('useUiStore', () => {
     })
 
     it('should not affect tracker state when toggling dark mode', () => {
-      store.tracker = {
-        visitCount: 5,
-        lastViewedSpell: 'Expelliarmus'
-      }
+      store.tracker.totalVisitCount = 5
+      store.tracker.lastViewedSpell = 'spell-789'
 
       store.toggleDarkMode()
 
-      expect(store.tracker.visitCount).toBe(5)
-      expect(store.tracker.lastViewedSpell).toBe('Expelliarmus')
+      expect(store.tracker.totalVisitCount).toBe(5)
+      expect(store.tracker.lastViewedSpell).toBe('spell-789')
+    })
+  })
+
+  describe('trackPageVisit Action', () => {
+    it('should increment totalVisitCount when tracking a page visit', () => {
+      expect(store.tracker.totalVisitCount).toBe(0)
+
+      store.trackPageVisit('SpellsView')
+
+      expect(store.tracker.totalVisitCount).toBe(1)
+    })
+
+    it('should increment specific page visit count', () => {
+      expect(store.tracker.pageVisits.SpellsView).toBe(0)
+
+      store.trackPageVisit('SpellsView')
+
+      expect(store.tracker.pageVisits.SpellsView).toBe(1)
+    })
+
+    it('should update lastVisitedPage', () => {
+      store.trackPageVisit('HousesView')
+
+      expect(store.tracker.lastVisitedPage).toBe('HousesView')
+    })
+
+    it('should update lastVisitedPageDisplayName with default name', () => {
+      store.trackPageVisit('SpellsView')
+
+      expect(store.tracker.lastVisitedPageDisplayName).toBe('Spells & Enchantments')
+    })
+
+    it('should update lastVisitedPageDisplayName with custom name', () => {
+      store.trackPageVisit('SpellsDetailsView', 'Spell: Expelliarmus')
+
+      expect(store.tracker.lastVisitedPageDisplayName).toBe('Spell: Expelliarmus')
+    })
+
+    it('should add entry to visitHistory', () => {
+      const beforeTimestamp = new Date().getTime()
+
+      store.trackPageVisit('ElixirView', 'Custom Elixir Page')
+
+      const afterTimestamp = new Date().getTime()
+
+      expect(store.tracker.visitHistory).toHaveLength(1)
+
+      const historyEntry = store.tracker.visitHistory[0]
+      expect(historyEntry.page).toBe('ElixirView')
+      expect(historyEntry.displayName).toBe('Custom Elixir Page')
+
+      const entryTimestamp = new Date(historyEntry.timestamp).getTime()
+      expect(entryTimestamp).toBeGreaterThanOrEqual(beforeTimestamp)
+      expect(entryTimestamp).toBeLessThanOrEqual(afterTimestamp)
+    })
+
+    it('should limit visitHistory to 10 entries', () => {
+      // Add 12 entries
+      for (let i = 0; i < 12; i++) {
+        store.trackPageVisit('SpellsView', `Visit ${i}`)
+      }
+
+      expect(store.tracker.visitHistory).toHaveLength(10)
+
+      // Most recent should be first
+      expect(store.tracker.visitHistory[0].displayName).toBe('Visit 11')
+      expect(store.tracker.visitHistory[9].displayName).toBe('Visit 2')
+    })
+
+    it('should handle multiple visits to different pages', () => {
+      store.trackPageVisit('SpellsView')
+      store.trackPageVisit('HousesView')
+      store.trackPageVisit('ElixirView')
+
+      expect(store.tracker.totalVisitCount).toBe(3)
+      expect(store.tracker.pageVisits.SpellsView).toBe(1)
+      expect(store.tracker.pageVisits.HousesView).toBe(1)
+      expect(store.tracker.pageVisits.ElixirView).toBe(1)
+      expect(store.tracker.lastVisitedPage).toBe('ElixirView')
+    })
+
+    it('should warn for unknown page names', () => {
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      // @ts-expect-error - Testing invalid page name
+      store.trackPageVisit('InvalidPage')
+
+      expect(consoleWarnSpy).toHaveBeenCalledWith('Unknown page: InvalidPage')
+
+      consoleWarnSpy.mockRestore()
+    })
+
+    it('should not update counts for unknown page names', () => {
+      const initialTotalCount = store.tracker.totalVisitCount
+
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      // @ts-expect-error - Testing invalid page name
+      store.trackPageVisit('InvalidPage')
+
+      expect(store.tracker.totalVisitCount).toBe(initialTotalCount)
+
+      consoleWarnSpy.mockRestore()
+    })
+  })
+
+  describe('updatePageDisplayName Action', () => {
+    it('should update page display name', () => {
+      store.updatePageDisplayName('SpellsView', 'Custom Spells Title')
+
+      expect(store.tracker.pageNames.SpellsView).toBe('Custom Spells Title')
+    })
+
+    it('should update lastVisitedPageDisplayName if it matches current page', () => {
+      store.trackPageVisit('HousesView')
+      store.updatePageDisplayName('HousesView', 'Updated Houses Page')
+
+      expect(store.tracker.lastVisitedPageDisplayName).toBe('Updated Houses Page')
+    })
+
+    it('should not update lastVisitedPageDisplayName if it does not match current page', () => {
+      store.trackPageVisit('SpellsView')
+      store.updatePageDisplayName('HousesView', 'Updated Houses Page')
+
+      expect(store.tracker.lastVisitedPageDisplayName).toBe('Spells & Enchantments')
+    })
+
+    it('should warn for unknown page names', () => {
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      // @ts-expect-error - Testing invalid page name
+      store.updatePageDisplayName('InvalidPage', 'Some Title')
+
+      expect(consoleWarnSpy).toHaveBeenCalledWith('Unknown page: InvalidPage')
+
+      consoleWarnSpy.mockRestore()
+    })
+  })
+
+  describe('getPageVisitCount Action', () => {
+    it('should return correct visit count for a page', () => {
+      store.trackPageVisit('GamesView')
+      store.trackPageVisit('GamesView')
+      store.trackPageVisit('GamesView')
+
+      expect(store.getPageVisitCount('GamesView')).toBe(3)
+    })
+
+    it('should return 0 for unvisited pages', () => {
+      expect(store.getPageVisitCount('ElixirView')).toBe(0)
+    })
+  })
+
+  describe('getPageDisplayName Action', () => {
+    it('should return default display name', () => {
+      expect(store.getPageDisplayName('SpellsView')).toBe('Spells & Enchantments')
+    })
+
+    it('should return updated display name', () => {
+      store.updatePageDisplayName('SpellsView', 'Custom Spells Page')
+
+      expect(store.getPageDisplayName('SpellsView')).toBe('Custom Spells Page')
+    })
+
+    it('should return page name as fallback for unknown pages', () => {
+      // @ts-expect-error - Testing with invalid page name
+      expect(store.getPageDisplayName('UnknownPage')).toBe('UnknownPage')
+    })
+  })
+
+  describe('getMostVisitedPage Computed', () => {
+    it('should return null when no pages have been visited', () => {
+      expect(store.getMostVisitedPage).toBeNull()
+    })
+
+    it('should return the most visited page', () => {
+      store.trackPageVisit('SpellsView')
+      store.trackPageVisit('HousesView')
+      store.trackPageVisit('SpellsView')
+
+      expect(store.getMostVisitedPage).toBe('SpellsView')
+    })
+
+    it('should handle ties by returning first found', () => {
+      store.trackPageVisit('SpellsView')
+      store.trackPageVisit('HousesView')
+
+      // Should return one of them (implementation dependent)
+      const mostVisited = store.getMostVisitedPage
+      expect(['SpellsView', 'HousesView']).toContain(mostVisited)
+    })
+  })
+
+  describe('getMostVisitedPageDisplayName Computed', () => {
+    it('should return null when no pages have been visited', () => {
+      expect(store.getMostVisitedPageDisplayName).toBeNull()
+    })
+
+    it('should return display name of most visited page', () => {
+      store.trackPageVisit('SpellsView')
+      store.trackPageVisit('HousesView')
+      store.trackPageVisit('SpellsView')
+
+      expect(store.getMostVisitedPageDisplayName).toBe('Spells & Enchantments')
+    })
+
+    it('should return updated display name', () => {
+      store.trackPageVisit('SpellsView')
+      store.updatePageDisplayName('SpellsView', 'Custom Spells')
+
+      expect(store.getMostVisitedPageDisplayName).toBe('Custom Spells')
+    })
+  })
+
+  describe('getVisitHistoryWithNames Computed', () => {
+    it('should return empty array when no visits', () => {
+      expect(store.getVisitHistoryWithNames).toEqual([])
+    })
+
+    it('should return visit history with display names', () => {
+      store.trackPageVisit('SpellsView', 'Custom Spell Page')
+      store.trackPageVisit('HousesView')
+
+      const history = store.getVisitHistoryWithNames
+
+      expect(history).toHaveLength(2)
+      expect(history[0].displayName).toBe('Hogwarts Houses')
+      expect(history[1].displayName).toBe('Custom Spell Page')
+    })
+
+    it('should use fallback names when displayName is missing', () => {
+      // Manually add history entry without displayName
+      store.tracker.visitHistory.push({
+        page: 'SpellsView',
+        displayName: '',
+        timestamp: new Date().toISOString()
+      })
+
+      const history = store.getVisitHistoryWithNames
+
+      expect(history[0].displayName).toBe('Spells & Enchantments')
     })
   })
 
@@ -277,7 +559,7 @@ describe('useUiStore', () => {
         writable: true
       })
 
-      // Should not throw error with defensive implementation
+      // Should not throw error
       expect(() => {
         store.toggleDarkMode()
       }).not.toThrow()
@@ -311,194 +593,141 @@ describe('useUiStore', () => {
     })
   })
 
-  describe('State Interactions', () => {
-    it('should allow independent state management', () => {
-      // Set tracker data
-      store.tracker = {
-        visitCount: 25,
-        lastViewedSpell: 'Patronus Charm'
-      }
-
-      // Toggle dark mode
-      store.toggleDarkMode()
-
-      // Both states should be independent
-      expect(store.isDarkMode).toBe(true)
-      expect(store.themeClass).toBe('dark')
-      expect(store.tracker.visitCount).toBe(25)
-      expect(store.tracker.lastViewedSpell).toBe('Patronus Charm')
-    })
-
-    it('should handle rapid state changes', () => {
-      // Rapid tracker updates
-      for (let i = 0; i < 10; i++) {
-        store.tracker.visitCount = i
-        store.tracker.lastViewedSpell = `Spell ${i}`
-      }
-
-      expect(store.tracker.visitCount).toBe(9)
-      expect(store.tracker.lastViewedSpell).toBe('Spell 9')
-
-      // Rapid dark mode toggles
-      for (let i = 0; i < 5; i++) {
-        store.toggleDarkMode()
-      }
-
-      expect(store.isDarkMode).toBe(true) // Odd number of toggles
-      expect(store.themeClass).toBe('dark')
-    })
-  })
-
-  describe('Type Safety', () => {
-    it('should maintain proper TypeScript types', () => {
-      // Set state to ensure types work
-      store.isDarkMode = true
-      store.tracker = {
-        visitCount: 15,
-        lastViewedSpell: 'Lumos'
-      }
-
-      // Access properties to ensure types are correct
-      const darkModeStatus: boolean = store.isDarkMode
-      const visitCount: number = store.tracker.visitCount
-      const lastSpell: string = store.tracker.lastViewedSpell
-      const themeClassName: string = store.themeClass
-
-      expect(typeof darkModeStatus).toBe('boolean')
-      expect(typeof visitCount).toBe('number')
-      expect(typeof lastSpell).toBe('string')
-      expect(typeof themeClassName).toBe('string')
-    })
-
-    it('should handle boolean type correctly', () => {
-      // Test explicit boolean values
-      store.isDarkMode = true
-      expect(store.isDarkMode).toBe(true)
-      expect(typeof store.isDarkMode).toBe('boolean')
-
-      store.isDarkMode = false
-      expect(store.isDarkMode).toBe(false)
-      expect(typeof store.isDarkMode).toBe('boolean')
-    })
-
-    it('should handle tracker object type correctly', () => {
-      const trackerData = {
-        visitCount: 33,
-        lastViewedSpell: 'Wingardium Leviosa'
-      }
-
-      store.tracker = trackerData
-
-      expect(store.tracker).toEqual(trackerData)
-      expect(typeof store.tracker.visitCount).toBe('number')
-      expect(typeof store.tracker.lastViewedSpell).toBe('string')
-    })
-  })
-
-  describe('Edge Cases', () => {
-    it('should handle negative visit counts', () => {
-      store.tracker.visitCount = -5
-      expect(store.tracker.visitCount).toBe(-5)
-    })
-
-    it('should handle zero visit count', () => {
-      store.tracker.visitCount = 10
-      store.tracker.visitCount = 0
-      expect(store.tracker.visitCount).toBe(0)
-    })
-
-    it('should handle empty string for lastViewedSpell', () => {
-      store.tracker.lastViewedSpell = 'Alohomora'
-      store.tracker.lastViewedSpell = ''
-      expect(store.tracker.lastViewedSpell).toBe('')
-    })
-
-    it('should handle special characters in lastViewedSpell', () => {
-      const specialSpellName = 'Spell with éspecial çharacters & symbols!'
-      store.tracker.lastViewedSpell = specialSpellName
-      expect(store.tracker.lastViewedSpell).toBe(specialSpellName)
-    })
-
-    it('should handle very large visit counts', () => {
-      const largeNumber = Number.MAX_SAFE_INTEGER
-      store.tracker.visitCount = largeNumber
-      expect(store.tracker.visitCount).toBe(largeNumber)
-    })
-
-    it('should handle decimal visit counts (if somehow set)', () => {
-      store.tracker.visitCount = 5.5
-      expect(store.tracker.visitCount).toBe(5.5)
-    })
-
-    it('should handle unicode characters in spell names', () => {
-      const unicodeSpellName = '魔法咒语 ✨🧙‍♂️'
-      store.tracker.lastViewedSpell = unicodeSpellName
-      expect(store.tracker.lastViewedSpell).toBe(unicodeSpellName)
-    })
-  })
-
   describe('Realistic Usage Scenarios', () => {
-    it('should simulate user browsing session', () => {
+    it('should simulate user browsing session with page tracking', () => {
       // User starts browsing
-      expect(store.tracker.visitCount).toBe(0)
-      expect(store.tracker.lastViewedSpell).toBe('')
+      expect(store.tracker.totalVisitCount).toBe(0)
 
-      // User views first spell
-      store.tracker.visitCount++
-      store.tracker.lastViewedSpell = 'Lumos'
-
-      expect(store.tracker.visitCount).toBe(1)
-      expect(store.tracker.lastViewedSpell).toBe('Lumos')
+      // User visits home page
+      store.trackPageVisit('HomeView')
+      expect(store.tracker.totalVisitCount).toBe(1)
+      expect(store.tracker.lastVisitedPage).toBe('HomeView')
 
       // User toggles dark mode
       store.toggleDarkMode()
       expect(store.isDarkMode).toBe(true)
-      expect(store.themeClass).toBe('dark')
 
-      // User continues browsing
-      store.tracker.visitCount++
-      store.tracker.lastViewedSpell = 'Nox'
+      // User views spells
+      store.trackPageVisit('SpellsView')
+      expect(store.tracker.totalVisitCount).toBe(2)
+      expect(store.tracker.pageVisits.SpellsView).toBe(1)
 
-      expect(store.tracker.visitCount).toBe(2)
-      expect(store.tracker.lastViewedSpell).toBe('Nox')
+      // User views specific spell
+      store.trackPageVisit('SpellsDetailsView', 'Spell: Expelliarmus')
+      expect(store.tracker.totalVisitCount).toBe(3)
+      expect(store.tracker.lastViewedSpell).toBe('')
 
-      // User toggles dark mode back
-      store.toggleDarkMode()
-      expect(store.isDarkMode).toBe(false)
-      expect(store.themeClass).toBe('')
+      // Update last viewed spell
+      store.tracker.lastViewedSpell = 'spell-123'
+      expect(store.tracker.lastViewedSpell).toBe('spell-123')
 
-      // Final state
-      expect(store.tracker.visitCount).toBe(2)
-      expect(store.tracker.lastViewedSpell).toBe('Nox')
+      // Final state verification
+      expect(store.tracker.visitHistory).toHaveLength(3)
+      expect(store.getMostVisitedPage).toBeTruthy()
     })
 
-    it('should handle theme preference persistence simulation', () => {
-      // User enables dark mode
-      store.toggleDarkMode()
-      expect(store.isDarkMode).toBe(true)
-      expect(mockClassList.add).toHaveBeenCalledWith('dark')
+    it('should handle spell details tracking workflow', () => {
+      // User visits spell details with dynamic name
+      store.trackPageVisit('SpellsDetailsView', 'Spell: Wingardium Leviosa')
 
-      // Simulate app restart (store should persist the preference)
-      expect(store.isDarkMode).toBe(true)
-      expect(store.themeClass).toBe('dark')
+      // Update the spell ID they viewed
+      store.tracker.lastViewedSpell = 'spell-wingardium-123'
+
+      // Update the display name if spell loads more data
+      store.updatePageDisplayName('SpellsDetailsView', 'Spell: Wingardium Leviosa (Advanced)')
+
+      expect(store.tracker.lastViewedSpell).toBe('spell-wingardium-123')
+      expect(store.tracker.lastVisitedPageDisplayName).toBe('Spell: Wingardium Leviosa (Advanced)')
+      expect(store.getPageDisplayName('SpellsDetailsView')).toBe('Spell: Wingardium Leviosa (Advanced)')
     })
 
-    it('should handle tracking user engagement', () => {
-      const spellSequence = [
-        'Expelliarmus',
-        'Stupefy',
-        'Expecto Patronum',
-        'Alohomora',
-        'Wingardium Leviosa'
-      ]
+    it('should handle analytics data collection', () => {
+      // Simulate user journey
+      const pages = ['HomeView', 'SpellsView', 'SpellsDetailsView', 'HousesView', 'MyFavouritesView']
 
-      spellSequence.forEach((spell, index) => {
-        store.tracker.visitCount = index + 1
-        store.tracker.lastViewedSpell = spell
+      pages.forEach((page, index) => {
+        // @ts-expect-error - We know these are valid page names
+        store.trackPageVisit(page)
+
+        if (page === 'SpellsDetailsView') {
+          store.tracker.lastViewedSpell = `spell-${index}`
+        }
       })
 
-      expect(store.tracker.visitCount).toBe(5)
-      expect(store.tracker.lastViewedSpell).toBe('Wingardium Leviosa')
+      // Verify analytics data
+      expect(store.tracker.totalVisitCount).toBe(5)
+      expect(store.tracker.visitHistory).toHaveLength(5)
+      expect(store.getMostVisitedPage).toBeTruthy()
+      expect(store.getMostVisitedPageDisplayName).toBeTruthy()
+
+      // Each page should have 1 visit
+      pages.forEach(page => {
+        // @ts-expect-error - We know these are valid page names
+        expect(store.getPageVisitCount(page)).toBe(1)
+      })
+    })
+  })
+
+  describe('Type Safety and Edge Cases', () => {
+    it('should handle all valid page names', () => {
+      const validPages: Array<keyof typeof store.tracker.pageVisits> = [
+        'ElixirView',
+        'GamesView',
+        'HomeView',
+        'HousesView',
+        'SpellsView',
+        'MyFavouritesView',
+        'SpellsDetailsView'
+      ]
+
+      validPages.forEach(page => {
+        expect(() => store.trackPageVisit(page)).not.toThrow()
+        expect(store.getPageVisitCount(page)).toBe(1)
+        expect(store.getPageDisplayName(page)).toBeTruthy()
+      })
+
+      expect(store.tracker.totalVisitCount).toBe(validPages.length)
+    })
+
+    it('should handle rapid page visits', () => {
+      // Simulate rapid navigation
+      for (let i = 0; i < 50; i++) {
+        store.trackPageVisit('SpellsView')
+      }
+
+      expect(store.tracker.totalVisitCount).toBe(50)
+      expect(store.tracker.pageVisits.SpellsView).toBe(50)
+      expect(store.tracker.visitHistory).toHaveLength(10) // Limited to 10
+    })
+
+    it('should maintain data integrity across operations', () => {
+      // Complex sequence of operations
+      store.trackPageVisit('SpellsView')
+      store.toggleDarkMode()
+      store.updatePageDisplayName('SpellsView', 'Custom Spells')
+      store.trackPageVisit('HousesView')
+      store.tracker.lastViewedSpell = 'spell-456'
+      store.toggleDarkMode()
+
+      // Verify all state is maintained correctly
+      expect(store.isDarkMode).toBe(false)
+      expect(store.tracker.totalVisitCount).toBe(2)
+      expect(store.tracker.lastViewedSpell).toBe('spell-456')
+      expect(store.getPageDisplayName('SpellsView')).toBe('Custom Spells')
+      expect(store.tracker.lastVisitedPage).toBe('HousesView')
+    })
+
+    it('should handle visit history with different display names', () => {
+      store.trackPageVisit('SpellsDetailsView', 'Spell: Expelliarmus')
+      store.trackPageVisit('SpellsDetailsView', 'Spell: Stupefy')
+      store.trackPageVisit('SpellsDetailsView', 'Spell: Protego')
+
+      const history = store.getVisitHistoryWithNames
+
+      expect(history).toHaveLength(3)
+      expect(history[0].displayName).toBe('Spell: Protego')
+      expect(history[1].displayName).toBe('Spell: Stupefy')
+      expect(history[2].displayName).toBe('Spell: Expelliarmus')
     })
   })
 })
