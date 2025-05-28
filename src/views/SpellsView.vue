@@ -52,6 +52,9 @@ const updateForm = ref({
 
 const spells = computed(() => {
   if (!spellsData.value) return []
+  if(spellStore.spells && spellStore.spells.length > 0) {
+    return spellStore.spells
+  }
   return spellsData.value
 })
 

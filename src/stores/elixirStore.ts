@@ -16,11 +16,23 @@ export const useElixirStore = defineStore('elixirStore', () => {
     }
   }
 
+  const createElixir = (elixir: ElixirInterface): void => {
+    if (!elixirs.value) {
+      elixirs.value = [elixir]
+    } else {
+      elixirs.value = [elixir, ...elixirs.value]
+    }
+    if (!selectedElixir.value) {
+      selectedElixir.value = elixir
+    }
+  }
+
   return {
     elixirs,
     selectedElixir,
     likedElixirs,
-    deleteElixir
+    deleteElixir,
+    createElixir
   }
 },
 {

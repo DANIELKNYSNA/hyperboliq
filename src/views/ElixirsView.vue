@@ -3,6 +3,7 @@ import { ref, reactive, computed, watch } from 'vue'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import Dropdown from 'primevue/dropdown'
+import MultiSelect from 'primevue/multiselect';
 import InputText from 'primevue/inputtext'
 import Badge from 'primevue/badge'
 import Skeleton from 'primevue/skeleton'
@@ -12,17 +13,37 @@ import Chip from 'primevue/chip'
 import Message from 'primevue/message'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faFlask, faMagic, faIndustry, faUser, faLeaf, faFilter, faExclamationTriangle, faClock, faHeart, faHeartBroken } from '@fortawesome/free-solid-svg-icons'
-import type { ElixirInterface } from '@/interfaces/elixirs'
+import type { ElixirInterface, IngredientInterface } from '@/interfaces/elixirs'
 import { useElixirs } from '@/composables/useElixirs'
 import { useElixirStore } from '@/stores/elixirStore'
+import { Difficulty } from '@/interfaces/elixirs'
+import { useIngredients } from '@/composables/useIngredients';
 
 const { elixirs: elixirsData, isLoading, isError, error, refetch } = useElixirs()
+const { ingredients: ingredientsData } = useIngredients()
 
 const loadingMore = ref(false)
 const elixirStore = useElixirStore()
 const likedElixirs = computed(() => elixirStore.likedElixirs || [])
 const selectedElixir = computed(() => elixirStore.selectedElixir)
 const showDetailsDialog = ref(false)
+const showElixirBrewingDialog = ref(false)
+const isCreating = ref(false)
+
+const createInitialElixir = (): Omit<ElixirInterface, 'ingredients'> & { ingredients: string[] } => ({
+  id: '',
+  name: '',
+  effect: '',
+  sideEffects: '',
+  time: '',
+  manufacturer: '',
+  ingredients: [],
+  inventors: [],
+  characteristics: '',
+  difficulty: Difficulty.Unknown
+})
+
+const newElixir = ref<Omit<ElixirInterface, 'ingredients'> & { ingredients: string[] }>(createInitialElixir())
 
 // Lazy loading state
 const ITEMS_PER_PAGE = 12
@@ -44,7 +65,15 @@ const difficultyOptions = [
 
 const elixirs = computed(() => {
   if (!elixirsData.value) return []
+  if(elixirStore.elixirs) {
+    return elixirStore.elixirs as ElixirInterface[]
+  }
   return elixirsData.value as ElixirInterface[]
+})
+
+const ingredients = computed(() => {
+  if (!ingredientsData.value) return []
+  return ingredientsData.value as IngredientInterface[]
 })
 
 watch(elixirsData, (newElixirs) => {
@@ -70,6 +99,13 @@ const paginatedElixirs = computed(() => {
 
 const hasMoreToLoad = computed(() => {
   return paginatedElixirs.value.length < filteredElixirs.value.length
+})
+
+const isFormValid = computed(() => {
+  return newElixir.value.name.trim() &&
+         newElixir.value.effect.trim() &&
+         newElixir.value.ingredients.length > 0 &&
+         newElixir.value.difficulty !== Difficulty.Unknown
 })
 
 const isElixirLiked = (elixir: ElixirInterface) => {
@@ -103,12 +139,9 @@ const getDifficultySeverity = (difficulty: string) => {
 
 const loadMoreElixirs = async () => {
   if (loadingMore.value || !hasMoreToLoad.value) return
-
   loadingMore.value = true
-
   // Simulate loading delay for better UX
   await new Promise(resolve => setTimeout(resolve, 500))
-
   currentPage.value += 1
   loadingMore.value = false
 }
@@ -144,6 +177,42 @@ const watchFilters = () => {
 const handleRetry = () => {
   refetch()
 }
+
+const resetNewElixir = () => {
+  newElixir.value = createInitialElixir()
+}
+
+const openCreateDialog = () => {
+  resetNewElixir()
+  showElixirBrewingDialog.value = true
+}
+
+const handleCreateElixir = () => {
+  if (!isFormValid.value) return
+  isCreating.value = true
+  try {
+    const selectedIngredients = newElixir.value.ingredients
+      .map(id => ingredients.value.find(ing => ing.id === id))
+      .filter((ing): ing is IngredientInterface => ing !== undefined)
+    const elixirToCreate: ElixirInterface = {
+      ...newElixir.value,
+      id: Date.now().toString(),
+      ingredients: selectedIngredients
+    }
+    elixirStore.createElixir(elixirToCreate)
+    showElixirBrewingDialog.value = false
+    resetNewElixir()
+  } catch (error) {
+    console.error('Failed to create elixir:', error)
+  } finally {
+    isCreating.value = false
+  }
+}
+
+const cancelCreation = () => {
+  showElixirBrewingDialog.value = false
+  resetNewElixir()
+}
 </script>
 
 <template>
@@ -165,15 +234,24 @@ const handleRetry = () => {
       <template #subtitle>
         <div class="flex items-center justify-between">
           <p>Discover and explore magical potions and elixirs</p>
-          <div v-if="hasActiveFilters" class="flex items-center gap-2">
-            <Badge value="Filtered" severity="info" />
+          <div class="flex items-center gap-2">
             <Button
-              label="Clear Filters"
-              size="small"
-              severity="secondary"
-              outlined
-              @click="clearFilters"
+              label="Create New Elixir"
+              icon="pi pi-plus"
+              severity="success"
+              @click="openCreateDialog"
+              class="create-elixir-btn"
             />
+            <div v-if="hasActiveFilters" class="flex items-center gap-2">
+              <Badge value="Filtered" severity="info" />
+              <Button
+                label="Clear Filters"
+                size="small"
+                severity="secondary"
+                outlined
+                @click="clearFilters"
+              />
+            </div>
           </div>
         </div>
       </template>
@@ -553,6 +631,199 @@ const handleRetry = () => {
         </div>
       </template>
     </Dialog>
+
+    <Dialog
+      v-model:visible="showElixirBrewingDialog"
+      modal
+      header="Create New Elixir"
+      :style="{ width: '50vw', minWidth: '350px', maxWidth: '800px' }"
+      class="elixir-brewing-dialog"
+    >
+      <template #header>
+        <div class="flex items-center gap-3">
+          <FontAwesomeIcon :icon="faFlask" class="text-2xl text-green-600" />
+          <div class="flex-1">
+            <h3 class="text-xl font-bold">Brew a New Elixir</h3>
+            <p class="text-sm text-gray-600 mt-1">Create your magical potion</p>
+          </div>
+        </div>
+      </template>
+
+      <div class="space-y-4">
+        <div class="field">
+          <label for="elixirName" class="block text-sm font-medium mb-2">
+            <FontAwesomeIcon :icon="faFlask" class="mr-1 text-purple-600" />
+            Elixir Name *
+          </label>
+          <InputText
+            id="elixirName"
+            v-model="newElixir.name"
+            placeholder="Enter elixir name..."
+            class="w-full"
+            :disabled="isCreating"
+            :class="{ 'p-invalid': !newElixir.name.trim() && newElixir.name !== '' }"
+          />
+        </div>
+
+        <div class="field">
+          <label for="elixirIngredients" class="block text-sm font-medium mb-2">
+            <FontAwesomeIcon :icon="faLeaf" class="mr-1 text-green-600" />
+            Ingredients * ({{ newElixir.ingredients.length }} selected)
+          </label>
+          <MultiSelect
+            id="elixirIngredients"
+            v-model="newElixir.ingredients"
+            :options="ingredients"
+            optionLabel="name"
+            optionValue="id"
+            filter
+            placeholder="Select ingredients..."
+            :maxSelectedLabels="3"
+            class="w-full"
+            :disabled="isCreating"
+          >
+            <template #option="slotProps">
+              <div class="flex items-center gap-2">
+                <FontAwesomeIcon :icon="faLeaf" class="text-green-600 text-sm" />
+                <span>{{ slotProps.option.name }}</span>
+              </div>
+            </template>
+          </MultiSelect>
+        </div>
+
+        <div class="field">
+          <label for="elixirEffect" class="block text-sm font-medium mb-2">
+            <FontAwesomeIcon :icon="faMagic" class="mr-1 text-purple-600" />
+            Primary Effect *
+          </label>
+          <InputText
+            id="elixirEffect"
+            v-model="newElixir.effect"
+            placeholder="Describe the primary magical effect..."
+            class="w-full"
+            :disabled="isCreating"
+            :class="{ 'p-invalid': !newElixir.effect.trim() && newElixir.effect !== '' }"
+          />
+        </div>
+
+        <div class="field">
+          <label for="elixirDifficulty" class="block text-sm font-medium mb-2">
+            <FontAwesomeIcon :icon="faExclamationTriangle" class="mr-1 text-orange-600" />
+            Difficulty Level *
+          </label>
+          <Dropdown
+            id="elixirDifficulty"
+            v-model="newElixir.difficulty"
+            :options="difficultyOptions.filter(opt => opt.value !== '')"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select difficulty level..."
+            class="w-full"
+            :disabled="isCreating"
+            :class="{ 'p-invalid': newElixir.difficulty === Difficulty.Unknown }"
+          />
+        </div>
+
+        <div class="field">
+          <label for="elixirTime" class="block text-sm font-medium mb-2">
+            <FontAwesomeIcon :icon="faClock" class="mr-1 text-blue-600" />
+            Brewing Time
+          </label>
+          <InputText
+            id="elixirTime"
+            v-model="newElixir.time"
+            placeholder="e.g., 30 minutes, 2 hours..."
+            class="w-full"
+            :disabled="isCreating"
+          />
+        </div>
+
+        <div class="field">
+          <label for="elixirSideEffects" class="block text-sm font-medium mb-2">
+            <FontAwesomeIcon :icon="faExclamationTriangle" class="mr-1 text-orange-600" />
+            Side Effects
+          </label>
+          <InputText
+            id="elixirSideEffects"
+            v-model="newElixir.sideEffects"
+            placeholder="Describe any side effects..."
+            class="w-full"
+            :disabled="isCreating"
+          />
+        </div>
+
+        <div class="field">
+          <label for="elixirManufacturer" class="block text-sm font-medium mb-2">
+            <FontAwesomeIcon :icon="faIndustry" class="mr-1 text-gray-600" />
+            Manufacturer
+          </label>
+          <InputText
+            id="elixirManufacturer"
+            v-model="newElixir.manufacturer"
+            placeholder="Enter manufacturer name..."
+            class="w-full"
+            :disabled="isCreating"
+          />
+        </div>
+
+        <div class="field">
+          <label for="elixirCharacteristics" class="block text-sm font-medium mb-2">
+            <FontAwesomeIcon :icon="faMagic" class="mr-1 text-indigo-600" />
+            Characteristics
+          </label>
+          <InputText
+            id="elixirCharacteristics"
+            v-model="newElixir.characteristics"
+            placeholder="Describe special characteristics..."
+            class="w-full"
+            :disabled="isCreating"
+          />
+        </div>
+
+        <!-- Form Validation Summary -->
+        <div v-if="!isFormValid" class="mt-4">
+          <Message severity="warn" :closable="false">
+            <div class="text-sm">
+              <p class="font-medium mb-2">Please complete the following required fields:</p>
+              <ul class="list-disc list-inside space-y-1">
+                <li v-if="!newElixir.name.trim()">Elixir Name</li>
+                <li v-if="newElixir.ingredients.length === 0">At least one ingredient</li>
+                <li v-if="!newElixir.effect.trim()">Primary Effect</li>
+                <li v-if="newElixir.difficulty === Difficulty.Unknown">Difficulty Level</li>
+              </ul>
+            </div>
+          </Message>
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="flex justify-between items-center">
+          <div class="text-sm text-gray-600 mr-2">
+            <FontAwesomeIcon :icon="faFlask" class="mr-1" />
+            Fields marked with * are required
+          </div>
+          <div class="flex gap-3">
+            <Button
+              label="Cancel"
+              icon="pi pi-times"
+              severity="secondary"
+              outlined
+              @click="cancelCreation"
+              :disabled="isCreating"
+            />
+            <Button
+              label="Brew Elixir"
+              icon="pi pi-check"
+              severity="success"
+              :loading="isCreating"
+              :disabled="!isFormValid"
+              @click="handleCreateElixir"
+              class="brew-btn"
+            />
+          </div>
+        </div>
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -635,6 +906,26 @@ const handleRetry = () => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
+.create-elixir-btn {
+  transition: all 0.3s ease;
+}
+
+.create-elixir-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+}
+
+.brew-btn:not(:disabled) {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border: none;
+  transition: all 0.3s ease;
+}
+
+.brew-btn:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+}
+
 /* Like button styles */
 .like-btn, .like-btn-dialog {
   transition: all 0.3s ease;
@@ -676,6 +967,24 @@ const handleRetry = () => {
   border-radius: 0 0 8px 8px;
 }
 
+.elixir-brewing-dialog :deep(.p-dialog-header) {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border-radius: 8px 8px 0 0;
+}
+
+.elixir-brewing-dialog :deep(.p-dialog-content) {
+  padding: 1.5rem;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.elixir-brewing-dialog :deep(.p-dialog-footer) {
+  padding: 1rem 1.5rem;
+  background: #f8f9fa;
+  border-radius: 0 0 8px 8px;
+}
+
 .effect-section,
 .side-effects-section,
 .characteristics-section {
@@ -702,6 +1011,31 @@ const handleRetry = () => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
+.field {
+  margin-bottom: 1rem;
+}
+
+.field label {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+:deep(.p-invalid) {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 0.2rem rgba(220, 38, 38, 0.2) !important;
+}
+
+/* MultiSelect custom styling */
+:deep(.p-multiselect-panel .p-multiselect-item) {
+  padding: 0.75rem;
+}
+
+:deep(.p-multiselect-panel .p-multiselect-item:hover) {
+  background: rgba(16, 185, 129, 0.1);
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .elixirs-page {
@@ -718,6 +1052,12 @@ const handleRetry = () => {
 
   .filter-container .grid {
     grid-template-columns: 1fr;
+  }
+
+  .elixir-details-dialog,
+  .elixir-brewing-dialog {
+    width: 95vw !important;
+    min-width: unset !important;
   }
 }
 
